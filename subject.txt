@@ -1,0 +1,49 @@
+Chiến lược Timeout vs Phát hiện deadlock
+Timeout là cách xử lý deadlock phổ biến trong thực tế do đơn giản và chi phí thấp. Tuy nhiên, timeout có thể gây false positive (kill nhầm quá trình). Đề tài này yêu cầu sinh viên thiết kế cơ chế timeout và so sánh với deadlock detection.
+
+Sinh viên cần thiết kế và triển khai một cơ chế timeout để xử lý deadlock dựa trên khái niệm thời gian logic của hệ thống. Trong đó, mỗi sự kiện trong dataset được xem là một đơn vị thời gian, và thời gian chờ của một quá trình được định nghĩa là:
+	waiting_time = current_time − request_time,
+với request_time là thời điểm quá trình bắt đầu chờ tài nguyên. Khi waiting_time vượt quá một ngưỡng TIMEOUT, hệ thống phải kích hoạt cơ chế xử lý như hủy quá trình (kill), thử lại (retry), hoặc rollback.
+
+Sinh viên phải thực hiện thí nghiệm với ít nhất ba giá trị TIMEOUT khác nhau và so sánh kết quả dựa trên các metric:
+- number of killed processes – số quá trình bị hủy do timeout, phản ánh mức độ “hung hăng” của cơ chế,
+- deadlock resolved – số trường hợp deadlock được giải quyết thành công,
+- throughput– số quá trình hoàn thành trên tổng số quá trình, dùng để đo hiệu suất hệ thống,
+- false positive rate – tỷ lệ quá trình bị hủy trong khi không thực sự tham gia deadlock.
+Sinh viên cần phân tích ảnh hưởng của giá trị TIMEOUT đến hiệu năng và độ chính xác của hệ thống.
+Tóm tắt yêu cầu:
+1. Định nghĩa thời gian
+Bắt buộc: waiting_time = current_time - request_time
+mỗi event = 1 time unit
+2. Implement timeout mechanism
+- Khi process bị block:
+	+ lưu request_time
+- Nếu: waiting_time >= TIMEOUT → trigger timeout
+3. Xử lý timeout
+Sinh viên phải implement ≥ 2 cách:
+- kill process
+- retry request
+- rollback (nếu có thể)
+4. Experiment
+Chạy với các kịch bản có timeout
+5. Metrics
+Sinh viên phải đánh giá các metric:
+- số process bị kill
+- số deadlock resolve
+- throughput (completed process)
+6. Phân tích
+- TIMEOUT nhỏ vs lớn tác động thế nào để hoạt động của các process.
+- false positive xảy ra khi nào?
+Sample dataset
+time,process_id,action,resource_id,duration
+0,P1,request,R1,5
+1,P2,request,R2,5
+2,P3,request,R3,5
+3,P1,request,R2,0
+4,P2,request,R3,0
+5,P3,request,R1,0
+6,P4,request,R2,0
+7,P5,request,R3,0
+Duration: thời gian giữ resource
+Deadlock xảy ra + các quá trình chờ kéo dài → phù hợp test timeout. Sinh viên tự bổ sung thời
+gian timeout .
