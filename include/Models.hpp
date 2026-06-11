@@ -4,6 +4,8 @@
 #include <set>
 #include <string>
 
+using namespace std;
+
 enum class ProcessState {
     New,
     Running,
