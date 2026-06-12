@@ -228,13 +228,96 @@ static void testEngineThroughputBounded() {
   CHECK(mk.killedProcesses >= 1); // co process bi kill de go deadlock
 }
 
+static void testTimeoutRollback() {
+  std::printf("testTimeoutRollback\n");
+  TimeoutConfig cfg;
+  cfg.timeout = 3;
+  cfg.strategy = TimeoutStrategy::Rollback;
+  cfg.maxRollbacks = 2;
+  TimeoutManager mgr(cfg);
+
+  std::map<std::string, Process> processes;
+  std::map<std::string, Resource> resources;
+  Process p;
+  p.id = "P1";
+  p.state = ProcessState::Blocked;
+  p.requestTime = 0;
+  p.waitingFor = "R2";
+  p.heldResources.insert("R1");
+  processes["P1"] = p;
+  Resource r1;
+  r1.id = "R1";
+  r1.owner = "P1";
+  resources["R1"] = r1;
+  std::vector<PendingRequest> pending = {PendingRequest{"P1", "R2", 0, 5, 0}};
+  DeadlockDetector det;
+
+  // Rollback 1: tra ve New, giai phong tai nguyen, xoa pending.
+  auto rec1 = mgr.checkTimeouts(5, processes, resources, pending, det);
+  CHECK(rec1.size() == 1);
+  CHECK(rec1[0].rolledBack);
+  CHECK(!rec1[0].killed);
+  CHECK(processes["P1"].state == ProcessState::New);
+  CHECK(processes["P1"].rollbackCount == 1);
+  CHECK(resources["R1"].isFree());
+  CHECK(pending.empty());
+
+  // Mo phong process bi block lai, rollback 2.
+  processes["P1"].state = ProcessState::Blocked;
+  processes["P1"].requestTime = 10;
+  pending.push_back(PendingRequest{"P1", "R2", 10, 5, 0});
+  auto rec2 = mgr.checkTimeouts(20, processes, resources, pending, det);
+  CHECK(rec2[0].rolledBack);
+  CHECK(processes["P1"].rollbackCount == 2);
+
+  // Rollback 3 -> vuot maxRollbacks -> leo thang kill.
+  processes["P1"].state = ProcessState::Blocked;
+  processes["P1"].requestTime = 30;
+  pending.push_back(PendingRequest{"P1", "R2", 30, 5, 0});
+  auto rec3 = mgr.checkTimeouts(40, processes, resources, pending, det);
+  CHECK(rec3[0].killed);
+  CHECK(!rec3[0].rolledBack);
+  CHECK(processes["P1"].state == ProcessState::Terminated);
+  CHECK(pending.empty());
+}
+
+static void testEngineRollback() {
+  std::printf("testEngineRollback\n");
+  const std::string path = writeTemp(
+      "tmp_rollback.csv",
+      "time,process_id,action,resource_id,duration\n"
+      "0,P1,request,R1,10\n"
+      "0,P2,request,R2,10\n"
+      "0,P3,request,R3,10\n"
+      "1,P1,request,R2,0\n"
+      "1,P2,request,R3,0\n"
+      "1,P3,request,R1,0\n");
+  auto events = CSVParser::parse(path);
+
+  TimeoutConfig cfg;
+  cfg.timeout = 3;
+  cfg.strategy = TimeoutStrategy::Rollback;
+  cfg.maxRollbacks = 3;
+  SimulationEngine engine(cfg);
+  auto m = engine.run(events); // phai hoi tu, khong loop vo han
+
+  CHECK(m.totalProcesses == 3);
+  CHECK(m.throughput() <= 1.0);
+  CHECK(m.completedProcesses <= m.totalProcesses);
+  CHECK(m.rollbackEvents >= 1); // co it nhat 1 rollback de go deadlock
+  std::remove(path.c_str());
+}
+
 int main() {
   testParser();
   testDetector();
   testTimeoutKill();
   testTimeoutRetryEscalation();
+  testTimeoutRollback();
   testEngineThroughputBounded();
+  testEngineRollback();
 
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }
+

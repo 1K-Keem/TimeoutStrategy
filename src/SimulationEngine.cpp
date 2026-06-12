@@ -1,16 +1,24 @@
 #include "../include/SimulationEngine.hpp"
 
 #include <algorithm>
+#include <iostream>
 #include <utility>
 
-SimulationEngine::SimulationEngine(const TimeoutConfig &config)
-    : timeoutManager_(config) {}
+SimulationEngine::SimulationEngine(const TimeoutConfig &config, bool verbose)
+    : timeoutManager_(config), verbose_(verbose) {}
+
+void SimulationEngine::log(int currentTime, const string &message) const {
+  if (verbose_) {
+    std::cout << "Time " << currentTime << ": " << message << "\n";
+  }
+}
 
 void SimulationEngine::resetState() {
   processes_.clear();
   resources_.clear();
   pendingRequests_.clear();
   remainingEventCount_.clear();
+  processEvents_.clear();
   metrics_ = SimulationMetrics{};
   deadlockDetector_.clear();
 }
@@ -18,6 +26,7 @@ void SimulationEngine::resetState() {
 void SimulationEngine::registerEventSources(const vector<Event> &events) {
   for (const auto &event : events) {
     ++remainingEventCount_[event.processId];
+    processEvents_[event.processId].push_back(event);
     ensureProcessExists(event.processId);
   }
 }
@@ -72,7 +81,7 @@ SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
     grantPendingRequests(currentTime);
 
     // Quet de tim cac process da hoan thanh
-    checkAndCompleteProcesses();
+    checkAndCompleteProcesses(currentTime);
 
     if (nextEventIndex >= sortedEvents.size() && pendingRequests_.empty() &&
         !hasFutureRelease(currentTime)) {
@@ -100,15 +109,21 @@ void SimulationEngine::processEventsAt(int currentTime,
         PendingRequest request{event.processId, event.resourceId, currentTime,
                                event.duration, 0};
         allocateResource(process, request, currentTime);
+        log(currentTime, event.processId + " requests " + event.resourceId +
+                             " -> Granted");
         if (event.duration == 0) {
-          completeProcess(process);
+          completeProcess(process, currentTime);
         }
       } else {
         blockProcess(process, event, currentTime);
+        log(currentTime, event.processId + " requests " + event.resourceId +
+                             " -> Blocked (held by " + *resource.owner + ")");
       }
     } else if (event.action == "release") {
       if (resource.owner && *resource.owner == event.processId) {
         releaseResource(event.resourceId);
+        log(currentTime,
+            event.processId + " releases " + event.resourceId);
       }
     }
 
@@ -152,8 +167,11 @@ void SimulationEngine::grantPendingRequests(int currentTime) {
                     return false;
                   }
                   allocateResource(process, request, currentTime);
+                  log(currentTime, request.processId + " acquires " +
+                                       request.resourceId +
+                                       " -> Granted (was waiting)");
                   if (request.duration == 0) {
-                    completeProcess(process);
+                    completeProcess(process, currentTime);
                   }
                   return true;
                 }),
@@ -174,6 +192,13 @@ void SimulationEngine::applyTimeouts(int currentTime) {
     if (record.retried) {
       ++metrics_.retryEvents;
     }
+    if (record.rolledBack) {
+      ++metrics_.rollbackEvents;
+    }
+
+    const string fp = record.deadlockedAtTimeout ? "deadlock" : "false positive";
+    const string base = record.processId + " TIMEOUT (waited " +
+                        std::to_string(record.waitingTime) + ", " + fp + ")";
 
     // Cap nhat Wait-For Graph theo hanh dong, do cycle truoc/sau de biet
     // deadlock co thuc su duoc go khong.
@@ -181,13 +206,54 @@ void SimulationEngine::applyTimeouts(int currentTime) {
     if (record.killed) {
       deadlockDetector_.removeProcess(record.processId);
       ++metrics_.killedProcesses;
+      log(currentTime, base + " -> Killed");
+    } else if (record.rolledBack) {
+      // Process tra ve trang thai ban dau: go khoi do thi va re-inject events.
+      deadlockDetector_.removeProcess(record.processId);
+      replayProcess(record.processId, currentTime);
+      log(currentTime, base + " -> Rolled back");
     } else if (record.retried) {
       deadlockDetector_.removeWatingProcess(record.processId);
+      log(currentTime, base + " -> Retry");
     }
     const bool cycleAfter = deadlockDetector_.detectDeadlock();
 
     if (record.deadlockedAtTimeout && cycleBefore && !cycleAfter) {
       ++metrics_.deadlockResolved;
+      log(currentTime, "Deadlock resolved (cycle broken)");
+    }
+  }
+}
+
+// Rollback: chay lai process tu dau bang cach re-inject toan bo request event
+// cua no vao hang doi pending tai thoi diem hien tai.
+void SimulationEngine::replayProcess(const string &processId, int currentTime) {
+  auto it = processEvents_.find(processId);
+  if (it == processEvents_.end()) {
+    return;
+  }
+
+  // Don sach pending con sot cua process (phong truong hop).
+  pendingRequests_.erase(remove_if(pendingRequests_.begin(),
+                                   pendingRequests_.end(),
+                                   [&](const PendingRequest &item) {
+                                     return item.processId == processId;
+                                   }),
+                         pendingRequests_.end());
+
+  // Moi event cua process da duoc bieu dien lai thanh pending -> khong con
+  // event nguon nao cho doc nua.
+  remainingEventCount_[processId] = 0;
+
+  auto &process = processes_.at(processId);
+  process.state = ProcessState::New;
+  process.requestTime.reset();
+  process.waitingFor.reset();
+
+  for (const auto &event : it->second) {
+    if (event.action == "request") {
+      pendingRequests_.push_back(PendingRequest{
+          event.processId, event.resourceId, currentTime, event.duration, 0});
     }
   }
 }
@@ -211,7 +277,7 @@ void SimulationEngine::allocateResource(Process &process,
   deadlockDetector_.removeWatingProcess(process.id);
 }
 
-void SimulationEngine::completeProcess(Process &process) {
+void SimulationEngine::completeProcess(Process &process, int currentTime) {
   if (process.state == ProcessState::Completed ||
       process.state == ProcessState::Terminated) {
     return;
@@ -230,6 +296,7 @@ void SimulationEngine::completeProcess(Process &process) {
   }
   process.heldResources.clear();
   ++metrics_.completedProcesses;
+  log(currentTime, process.id + " -> Completed");
 }
 
 void SimulationEngine::releaseResource(const string &resourceId) {
@@ -246,12 +313,12 @@ void SimulationEngine::releaseResource(const string &resourceId) {
   ownerProcess.heldResources.erase(resourceId);
 }
 
-void SimulationEngine::checkAndCompleteProcesses() {
+void SimulationEngine::checkAndCompleteProcesses(int currentTime) {
   for (auto &[id, process] : processes_) {
     if (process.state == ProcessState::Running &&
         process.heldResources.empty() && remainingEventCount_[id] == 0 &&
         !process.waitingFor.has_value()) {
-      completeProcess(process);
+      completeProcess(process, currentTime);
     }
   }
 }
@@ -279,3 +346,13 @@ bool SimulationEngine::hasFutureRelease(int currentTime) const {
            *resource.releaseTime > currentTime;
   });
 }
+
+
+
+
+
+
+
+
+
+

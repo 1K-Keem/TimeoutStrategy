@@ -10,6 +10,7 @@ struct TimeoutConfig {
   TimeoutStrategy strategy{TimeoutStrategy::Kill};
   int retryDelay{1};
   int maxRetries{3};
+  int maxRollbacks{3};
 };
 
 class TimeoutManager {
@@ -39,4 +40,11 @@ private:
                              std::map<std::string, Resource> &resources,
                              std::vector<PendingRequest> &pendingRequests,
                              std::size_t requestIndex);
+
+  TimeoutRecord rollbackProcess(int currentTime, Process &process,
+                                const PendingRequest &request, int waitingTime,
+                                bool deadlocked,
+                                std::map<std::string, Resource> &resources,
+                                std::vector<PendingRequest> &pendingRequests);
 };
+

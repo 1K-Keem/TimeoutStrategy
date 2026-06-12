@@ -10,7 +10,7 @@
 
 class SimulationEngine {
 public:
-  SimulationEngine(const TimeoutConfig &config);
+  SimulationEngine(const TimeoutConfig &config, bool verbose = false);
 
   SimulationMetrics run(const vector<Event> &events);
 
@@ -20,11 +20,15 @@ private:
   TimeoutManager timeoutManager_;
   DeadlockDetector deadlockDetector_;
   SimulationMetrics metrics_;
+  bool verbose_{false};
+
+  void log(int currentTime, const string &message) const;
 
   map<string, Process> processes_;
   map<string, Resource> resources_;
   vector<PendingRequest> pendingRequests_;
   map<string, int> remainingEventCount_;
+  map<string, vector<Event>> processEvents_;
 
   void resetState();
   void registerEventSources(const vector<Event> &events);
@@ -39,10 +43,14 @@ private:
 
   void allocateResource(Process &process, PendingRequest &request,
                         int currentTime);
-  void completeProcess(Process &process);
+  void replayProcess(const string &processId, int currentTime);
+  void completeProcess(Process &process, int currentTime);
   void releaseResource(const string &resourceId);
-  void checkAndCompleteProcesses();
+  void checkAndCompleteProcesses(int currentTime);
   void blockProcess(Process &process, const Event &event, int currentTime);
 
   bool hasFutureRelease(int currentTime) const;
 };
+
+
+

@@ -38,6 +38,12 @@ std::vector<TimeoutRecord> TimeoutManager::checkTimeouts(
       records.push_back(killProcess(currentTime, process, request, waitingTime,
                                     deadlocked, resources, pendingRequests));
       index = 0;
+    } else if (config_.strategy == TimeoutStrategy::Rollback) {
+      records.push_back(rollbackProcess(currentTime, process, request,
+                                        waitingTime, deadlocked, resources,
+                                        pendingRequests));
+      // rollback (hoac leo thang kill) xoa moi pending cua process -> duyet lai
+      index = 0;
     } else {
       auto record = retryRequest(currentTime, process, request, waitingTime,
                                  deadlocked, resources, pendingRequests, index);
@@ -82,6 +88,7 @@ TimeoutManager::killProcess(int currentTime, Process &process,
                        deadlocked,
                        true,
                        false,
+                       false,
                        !deadlocked};
 }
 
@@ -112,6 +119,52 @@ TimeoutRecord TimeoutManager::retryRequest(
                        deadlocked,
                        false,
                        true,
+                       false,
                        !deadlocked};
 }
 
+TimeoutRecord TimeoutManager::rollbackProcess(
+    int currentTime, Process &process, const PendingRequest &request,
+    int waitingTime, bool deadlocked,
+    std::map<std::string, Resource> &resources,
+    std::vector<PendingRequest> &pendingRequests) {
+  process.rollbackCount += 1;
+
+  // Vuot nguong rollback -> leo thang sang kill de tranh livelock.
+  if (process.rollbackCount > config_.maxRollbacks) {
+    return killProcess(currentTime, process, request, waitingTime, deadlocked,
+                       resources, pendingRequests);
+  }
+
+  // Thu hoi toan bo tai nguyen process dang giu.
+  for (const auto &resourceId : process.heldResources) {
+    auto &resource = resources.at(resourceId);
+    resource.owner.reset();
+    resource.releaseTime.reset();
+  }
+  process.heldResources.clear();
+
+  // Xoa moi pending cua process (engine se re-inject lai tu dau).
+  pendingRequests.erase(std::remove_if(pendingRequests.begin(),
+                                       pendingRequests.end(),
+                                       [&](const PendingRequest &item) {
+                                         return item.processId == process.id;
+                                       }),
+                        pendingRequests.end());
+
+  // Tra process ve trang thai ban dau (chay lai tu dau).
+  process.state = ProcessState::New;
+  process.requestTime.reset();
+  process.waitingFor.reset();
+
+  return TimeoutRecord{currentTime,
+                       process.id,
+                       request.resourceId,
+                       waitingTime,
+                       config_.strategy,
+                       deadlocked,
+                       false,
+                       false,
+                       true,
+                       !deadlocked};
+}

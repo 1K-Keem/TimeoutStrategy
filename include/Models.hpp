@@ -17,6 +17,7 @@ enum class ProcessState {
 enum class TimeoutStrategy {
     Kill,
     Retry,
+    Rollback,
 };
 
 struct Event {
@@ -42,6 +43,7 @@ struct Process {
     std::optional<int> requestTime;
     std::optional<std::string> waitingFor;
     int retryAfter{};
+    int rollbackCount{};
 
     bool isAlive() const {
         return state != ProcessState::Completed && state != ProcessState::Terminated;
@@ -67,6 +69,7 @@ struct TimeoutRecord {
     bool deadlockedAtTimeout{};
     bool killed{};
     bool retried{};
+    bool rolledBack{};
     bool falsePositive{};
 };
 
@@ -74,6 +77,7 @@ struct SimulationMetrics {
     int killedProcesses{};
     int timeoutEvents{};
     int retryEvents{};
+    int rollbackEvents{};
     int deadlockResolved{};
     int completedProcesses{};
     int totalProcesses{};
@@ -87,3 +91,4 @@ struct SimulationMetrics {
         return timeoutEvents == 0 ? 0.0 : static_cast<double>(falsePositives) / timeoutEvents;
     }
 };
+
