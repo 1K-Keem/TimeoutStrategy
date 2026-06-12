@@ -29,9 +29,10 @@ std::vector<TimeoutRecord> TimeoutManager::checkTimeouts(
       continue;
     }
 
-    // TODO(Khanh): thay gia tri nay bang ket qua DeadlockDetector/Wait-For
-    // Graph. Phan Kim chi xu ly timeout; detector la phan rieng cua Khanh.
-    bool deadlocked = detector.detectDeadlock();
+    // True positive = process nay thuc su nam trong chu trinh cho (deadlock).
+    // Chi check rieng process bi timeout, khong dung cycle toan cuc -> tranh
+    // tinh nham false positive cho process cho lau ma khong deadlock.
+    bool deadlocked = detector.isInDeadlock(request.processId);
 
     if (config_.strategy == TimeoutStrategy::Kill) {
       records.push_back(killProcess(currentTime, process, request, waitingTime,
@@ -113,3 +114,4 @@ TimeoutRecord TimeoutManager::retryRequest(
                        true,
                        !deadlocked};
 }
+

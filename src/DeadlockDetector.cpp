@@ -1,21 +1,16 @@
-// TODO(Khanh): Hien thuc Wait-For Graph va DFS phat hien chu trinh.
-// cpp
+// Wait-For Graph + DFS phat hien chu trinh.
 #include "../include/DeadlockDetector.hpp"
 #include <vector>
 
 int WFGraph::getOrCreatePid(const string &pid) {
   auto it = pidToIndex.find(pid);
-
   if (it != pidToIndex.end()) {
     return it->second;
   }
-
   int idx = adj.size();
   pidToIndex[pid] = idx;
   indexToPid.push_back(pid);
-
   adj.emplace_back();
-
   return idx;
 }
 
@@ -33,26 +28,19 @@ void WFGraph::removeEdge(const string &wait, const string &hold) {
 
 void WFGraph::removeOutGoingEdge(const string &pid) {
   auto p = pidToIndex.find(pid);
-
   if (p == pidToIndex.end()) {
     return;
   }
-
   int idx = p->second;
-
   adj[idx].clear();
 }
 
 void WFGraph::removePid(const string &pid) {
   auto it = pidToIndex.find(pid);
-
   if (it == pidToIndex.end())
     return;
-
   int idx = it->second;
-
   adj[idx].clear();
-
   for (auto &neighbors : adj) {
     neighbors.erase(idx);
   }
@@ -67,13 +55,12 @@ void WFGraph::clear() {
 bool WFGraph::dfs(int idx, vector<bool> &visited, vector<bool> &inStack) {
   visited[idx] = true;
   inStack[idx] = true;
-
   for (const int &i : this->adj[idx]) {
     if (!visited[i]) {
       if (dfs(i, visited, inStack)) {
         return true;
       }
-    } else if (inStack[i] == true) {
+    } else if (inStack[i]) {
       return true;
     }
   }
@@ -97,19 +84,50 @@ bool WFGraph::hasCycle() {
 
 bool WFGraph::deadlockDetection() { return hasCycle(); }
 
-bool WFGraph::precheck_deadlock() { return false; }
+// Kiem tra reachability tu cur ve target (co duong di cur -> ... -> target).
+bool WFGraph::dfsReach(int cur, int target, vector<bool> &visited) {
+  if (cur == target) {
+    return true;
+  }
+  visited[cur] = true;
+  for (const int &next : adj[cur]) {
+    if (next == target) {
+      return true;
+    }
+    if (!visited[next] && dfsReach(next, target, visited)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// pid nam trong mot chu trinh khi va chi khi co duong di pid -> ... -> pid.
+bool WFGraph::pidInCycle(const string &pid) {
+  auto it = pidToIndex.find(pid);
+  if (it == pidToIndex.end()) {
+    return false;
+  }
+  int idx = it->second;
+  vector<bool> visited(adj.size(), false);
+  for (const int &next : adj[idx]) {
+    vector<bool> reachVisited(adj.size(), false);
+    if (dfsReach(next, idx, reachVisited)) {
+      return true;
+    }
+  }
+  (void)visited;
+  return false;
+}
 
 // DeadlockDetector
 
 void DeadlockDetector::addWaitRelation(const std::string &waitingPid,
                                        const std::string &holdingPid) {
-
   graph.addEdge(waitingPid, holdingPid);
 }
 
 void DeadlockDetector::removeWaitRelation(const std::string &waitingPid,
                                           const std::string &holdingPid) {
-
   graph.removeEdge(waitingPid, holdingPid);
 }
 
@@ -125,4 +143,6 @@ void DeadlockDetector::clear() { this->graph.clear(); }
 
 bool DeadlockDetector::detectDeadlock() { return graph.deadlockDetection(); }
 
-bool DeadlockDetector::precheckDeadlock() { return graph.precheck_deadlock(); }
+bool DeadlockDetector::isInDeadlock(const std::string &pid) {
+  return graph.pidInCycle(pid);
+}

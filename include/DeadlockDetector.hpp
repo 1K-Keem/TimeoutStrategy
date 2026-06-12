@@ -1,5 +1,5 @@
-// Todo: Khánh
-// hpp
+// Wait-For Graph + DFS phat hien chu trinh (deadlock).
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -15,6 +15,7 @@ private:
 
   bool hasCycle();
   bool dfs(int idx, vector<bool> &visited, vector<bool> &inStack);
+  bool dfsReach(int cur, int target, vector<bool> &visited);
 
 public:
   int getOrCreatePid(const string &pid);
@@ -24,9 +25,8 @@ public:
   void removeOutGoingEdge(const string &pid);
   void removePid(const string &pid);
   bool deadlockDetection();
+  bool pidInCycle(const string &pid);
   void clear();
-  // extend
-  bool precheck_deadlock();
 };
 
 class DeadlockDetector {
@@ -49,6 +49,5 @@ public:
   void clear();
 
   bool detectDeadlock();
-
-  bool precheckDeadlock();
+  bool isInDeadlock(const std::string &pid);
 };

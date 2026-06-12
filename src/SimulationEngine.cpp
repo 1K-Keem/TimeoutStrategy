@@ -1,6 +1,7 @@
 #include "../include/SimulationEngine.hpp"
 
 #include <algorithm>
+#include <utility>
 
 SimulationEngine::SimulationEngine(const TimeoutConfig &config)
     : timeoutManager_(config) {}
@@ -11,8 +12,6 @@ void SimulationEngine::resetState() {
   pendingRequests_.clear();
   remainingEventCount_.clear();
   metrics_ = SimulationMetrics{};
-
-  // build WFGraph
   deadlockDetector_.clear();
 }
 
@@ -23,20 +22,23 @@ void SimulationEngine::registerEventSources(const vector<Event> &events) {
   }
 }
 
-// Thêm Process vào Map nếu chưa tồn tại và cập nhật tổng số process
+// Them Process vao Map neu chua ton tai va cap nhat tong so process
 void SimulationEngine::ensureProcessExists(const string &processId) {
   if (processes_.find(processId) == processes_.end()) {
-    processes_.emplace(processId, Process{processId});
+    Process process;
+    process.id = processId;
+    processes_.emplace(processId, std::move(process));
     ++metrics_.totalProcesses;
   }
 }
 
-// Thêm Resource vào Map nếu chưa tồn tại và trả về tham chiếu đến Resource đó
+// Them Resource vao Map neu chua ton tai va tra ve tham chieu den Resource do
 Resource &SimulationEngine::ensureResourceExists(const string &resourceId) {
   auto it = resources_.find(resourceId);
   if (it == resources_.end()) {
-    auto [newIt, inserted] =
-        resources_.emplace(resourceId, Resource{resourceId});
+    Resource resource;
+    resource.id = resourceId;
+    auto [newIt, inserted] = resources_.emplace(resourceId, std::move(resource));
     it = newIt;
   }
   return it->second;
@@ -54,24 +56,22 @@ SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
   size_t nextEventIndex = 0;
 
   while (true) {
-    // Giải phóng tài nguyên hết hạn
+    // Giai phong tai nguyen het han
     releaseExpiredResources(currentTime);
 
-    // Ưu tiên cấp phát cho các yêu cầu cũ (tránh starvation)
+    // Uu tien cap phat cho cac yeu cau cu (tranh starvation)
     grantPendingRequests(currentTime);
 
-    // Xử lý sự kiện mới tại thời điểm hiện tại (nếu có request thì cấp phát tài
-    // nguyên luôn nếu có)
+    // Xu ly su kien moi tai thoi diem hien tai
     processEventsAt(currentTime, sortedEvents, nextEventIndex);
 
-    // Áp dụng chính sách timeout
+    // Ap dung chinh sach timeout
     applyTimeouts(currentTime);
 
-    // Cấp phát lại sau khi timeout (có thể có tài nguyên được giải phóng sau
-    // khi kill hoặc retry)
+    // Cap phat lai sau khi timeout (co the co tai nguyen duoc giai phong)
     grantPendingRequests(currentTime);
 
-    // Quét để tìm các process đã hoàn thành
+    // Quet de tim cac process da hoan thanh
     checkAndCompleteProcesses();
 
     if (nextEventIndex >= sortedEvents.size() && pendingRequests_.empty() &&
@@ -112,7 +112,6 @@ void SimulationEngine::processEventsAt(int currentTime,
       }
     }
 
-    // Cập nhật số lượng sự kiện còn lại cho process này
     auto remainingIt = remainingEventCount_.find(event.processId);
     if (remainingIt != remainingEventCount_.end()) {
       --remainingIt->second;
@@ -130,9 +129,6 @@ void SimulationEngine::releaseExpiredResources(int currentTime) {
       resourcesToRelease.push_back(resourceId);
     }
   }
-
-  // Release riêng từng resource sau khi đã thu thập hết để tránh sửa đổi
-  // iterator map
   for (const auto &resourceId : resourcesToRelease) {
     releaseResource(resourceId);
   }
@@ -142,6 +138,12 @@ void SimulationEngine::grantPendingRequests(int currentTime) {
   pendingRequests_.erase(
       remove_if(pendingRequests_.begin(), pendingRequests_.end(),
                 [&](PendingRequest &request) {
+                  auto &process = processes_.at(request.processId);
+                  // Bo cac pending cua process da ket thuc (tranh "hoi sinh"
+                  // process da Completed/Terminated -> double-count throughput).
+                  if (!process.isAlive()) {
+                    return true;
+                  }
                   if (request.requestTime > currentTime) {
                     return false;
                   }
@@ -149,7 +151,6 @@ void SimulationEngine::grantPendingRequests(int currentTime) {
                   if (!resource.isFree()) {
                     return false;
                   }
-                  auto &process = processes_.at(request.processId);
                   allocateResource(process, request, currentTime);
                   if (request.duration == 0) {
                     completeProcess(process);
@@ -164,20 +165,29 @@ void SimulationEngine::applyTimeouts(int currentTime) {
       currentTime, processes_, resources_, pendingRequests_, deadlockDetector_);
   for (const auto &record : records) {
     ++metrics_.timeoutEvents;
-    if (record.killed) {
 
-      // build WFGraph
-      deadlockDetector_.removeWatingProcess(record.processId);
-
-      ++metrics_.killedProcesses;
+    // False positive: process bi timeout nhung KHONG nam trong chu trinh that.
+    if (!record.deadlockedAtTimeout) {
+      ++metrics_.falsePositives;
     }
+
     if (record.retried) {
       ++metrics_.retryEvents;
     }
-    if (record.deadlockedAtTimeout) {
+
+    // Cap nhat Wait-For Graph theo hanh dong, do cycle truoc/sau de biet
+    // deadlock co thuc su duoc go khong.
+    const bool cycleBefore = deadlockDetector_.detectDeadlock();
+    if (record.killed) {
+      deadlockDetector_.removeProcess(record.processId);
+      ++metrics_.killedProcesses;
+    } else if (record.retried) {
+      deadlockDetector_.removeWatingProcess(record.processId);
+    }
+    const bool cycleAfter = deadlockDetector_.detectDeadlock();
+
+    if (record.deadlockedAtTimeout && cycleBefore && !cycleAfter) {
       ++metrics_.deadlockResolved;
-    } else {
-      ++metrics_.falsePositives;
     }
   }
 }
@@ -198,7 +208,6 @@ void SimulationEngine::allocateResource(Process &process,
     resource.releaseTime.reset();
   }
 
-  // build WFGraph
   deadlockDetector_.removeWatingProcess(process.id);
 }
 
@@ -208,7 +217,6 @@ void SimulationEngine::completeProcess(Process &process) {
     return;
   }
 
-  // build WFGraph
   deadlockDetector_.removeProcess(process.id);
 
   process.state = ProcessState::Completed;
@@ -243,13 +251,12 @@ void SimulationEngine::checkAndCompleteProcesses() {
     if (process.state == ProcessState::Running &&
         process.heldResources.empty() && remainingEventCount_[id] == 0 &&
         !process.waitingFor.has_value()) {
-
       completeProcess(process);
     }
   }
 }
 
-// Chặn process nếu tài nguyên đang được yêu cầu không có sẵn
+// Chan process neu tai nguyen dang yeu cau khong co san
 void SimulationEngine::blockProcess(Process &process, const Event &event,
                                     int currentTime) {
   process.state = ProcessState::Blocked;
@@ -258,17 +265,13 @@ void SimulationEngine::blockProcess(Process &process, const Event &event,
   pendingRequests_.push_back(PendingRequest{event.processId, event.resourceId,
                                             currentTime, event.duration, 0});
 
-  // build WFGraph - add edge
-  // auto &resource = resources_.at(event.resourceId);
   auto &resource = this->ensureResourceExists(event.resourceId);
-
   if (resource.owner.has_value()) {
     deadlockDetector_.addWaitRelation(process.id, *resource.owner);
   }
 }
 
-// Kiểm tra xem có tài nguyên nào sẽ được giải phong trong tương lai không (để
-// check điều kiện dừng)
+// Kiem tra co tai nguyen nao se duoc giai phong trong tuong lai khong
 bool SimulationEngine::hasFutureRelease(int currentTime) const {
   return any_of(resources_.begin(), resources_.end(), [&](const auto &pair) {
     const auto &resource = pair.second;
