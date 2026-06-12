@@ -17,10 +17,14 @@ private:
   bool dfs(int idx, vector<bool> &visited, vector<bool> &inStack);
 
 public:
-  int getPid(const string &pid);
+  int getOrCreatePid(const string &pid);
   void addEdge(const string &wait, const string &hold);
   void removeEdge(const string &wait, const string &hold);
+
+  void removeOutGoingEdge(const string &pid);
+  void removePid(const string &pid);
   bool deadlockDetection();
+  void clear();
   // extend
   bool precheck_deadlock();
 };
@@ -38,6 +42,11 @@ public:
 
   void removeWaitRelation(const std::string &waitingPid,
                           const std::string &holdingPid);
+
+  void removeWatingProcess(const string &pid);
+  void removeProcess(const string &pid);
+
+  void clear();
 
   bool detectDeadlock();
 

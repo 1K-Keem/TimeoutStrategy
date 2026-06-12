@@ -3,7 +3,7 @@
 #include "../include/DeadlockDetector.hpp"
 #include <vector>
 
-int WFGraph::getPid(const string &pid) {
+int WFGraph::getOrCreatePid(const string &pid) {
   auto it = pidToIndex.find(pid);
 
   if (it != pidToIndex.end()) {
@@ -20,15 +20,48 @@ int WFGraph::getPid(const string &pid) {
 }
 
 void WFGraph::addEdge(const string &wait, const string &hold) {
-  int from = getPid(wait);
-  int to = getPid(hold);
+  int from = getOrCreatePid(wait);
+  int to = getOrCreatePid(hold);
   adj[from].insert(to);
 }
 
 void WFGraph::removeEdge(const string &wait, const string &hold) {
-  int from = getPid(wait);
-  int to = getPid(hold);
+  int from = getOrCreatePid(wait);
+  int to = getOrCreatePid(hold);
   adj[from].erase(to);
+}
+
+void WFGraph::removeOutGoingEdge(const string &pid) {
+  auto p = pidToIndex.find(pid);
+
+  if (p == pidToIndex.end()) {
+    return;
+  }
+
+  int idx = p->second;
+
+  adj[idx].clear();
+}
+
+void WFGraph::removePid(const string &pid) {
+  auto it = pidToIndex.find(pid);
+
+  if (it == pidToIndex.end())
+    return;
+
+  int idx = it->second;
+
+  adj[idx].clear();
+
+  for (auto &neighbors : adj) {
+    neighbors.erase(idx);
+  }
+}
+
+void WFGraph::clear() {
+  this->pidToIndex.clear();
+  this->indexToPid.clear();
+  this->adj.clear();
 }
 
 bool WFGraph::dfs(int idx, vector<bool> &visited, vector<bool> &inStack) {
@@ -79,6 +112,16 @@ void DeadlockDetector::removeWaitRelation(const std::string &waitingPid,
 
   graph.removeEdge(waitingPid, holdingPid);
 }
+
+void DeadlockDetector::removeWatingProcess(const string &pid) {
+  this->graph.removeOutGoingEdge(pid);
+}
+
+void DeadlockDetector::removeProcess(const string &pid) {
+  this->graph.removePid(pid);
+}
+
+void DeadlockDetector::clear() { this->graph.clear(); }
 
 bool DeadlockDetector::detectDeadlock() { return graph.deadlockDetection(); }
 
