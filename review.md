@@ -164,7 +164,7 @@ Hoặc `make` / g++ trực tiếp.
 
 CLI:
 ```text
-timeout_strategy <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [max_retries|max_rollbacks] [-v|--verbose]
+timeout_strategy <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [max_retries|max_rollbacks] [-v|--verbose] [-c|--compare]
 ```
 Ví dụ:
 ```powershell
@@ -172,6 +172,17 @@ Ví dụ:
 .\timeout_strategy.exe data\three_process_deadlock.csv 3 retry 1 3
 .\timeout_strategy.exe data\three_process_deadlock.csv 3 rollback 1 3
 .\timeout_strategy.exe data\three_process_deadlock.csv 3 kill -v
+.\timeout_strategy.exe data\three_process_deadlock.csv 3 --compare
+```
+
+### Chế độ so sánh (cờ `-c`)
+Chạy cả 3 chiến lược trên cùng dataset + TIMEOUT, in bảng metrics một lần (đỡ phải chạy lần lượt):
+```text
+strategy   completed  killed retries rollbacks  resolved      fp  throughput   fp_rate
+--------------------------------------------------------------------------------------
+kill               4       1       0         0         1       0       0.800     0.000
+retry              5       0       5         0         1       4       1.000     0.800
+rollback           5       0       0         1         1       0       1.000     0.000
 ```
 
 ### Per-event log (cờ `-v`)
@@ -197,5 +208,6 @@ Hoàn thành (build `-Wall -Wextra` sạch, test 61/61, chạy end-to-end):
 Còn lại:
 - `data/sample_deadlock.csv` không trigger timeout — cân nhắc thêm dataset request vòng `duration > 0` để demo trực tiếp.
 - Biểu đồ throughput / fp_rate theo TIMEOUT cho slide — dữ liệu bảng mục 6 đã sẵn để vẽ.
+
 
 

@@ -4,5 +4,6 @@ build/
 *.o
 *.a
 
-# Built executable (no extension on *nix)
+# Built executables (no extension on *nix)
 /timeout_strategy
+/run_tests

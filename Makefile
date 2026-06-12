@@ -1,31 +1,41 @@
 CXX = g++
-CXXFLAGS = -g -std=c++17 -Wall -Wextra -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
 
-SRC = \
-	src/main.cpp \
+CORE = \
 	src/CSVParser.cpp \
 	src/DeadlockDetector.cpp \
 	src/SimulationEngine.cpp \
 	src/TimeoutManager.cpp
 
-TARGET = timeout_strategy
+SRC = src/main.cpp $(CORE)
+TEST_SRC = tests/test_main.cpp $(CORE)
 
 ifeq ($(OS),Windows_NT)
 	RM = del /f /q
-	EXE = $(TARGET).exe
+	EXE = timeout_strategy.exe
+	TEST_EXE = run_tests.exe
+	RUN = .\\
 else
 	RM = rm -f
-	EXE = $(TARGET)
+	EXE = timeout_strategy
+	TEST_EXE = run_tests
+	RUN = ./
 endif
 
-all: $(TARGET)
+all: $(EXE)
 
-$(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
+$(EXE): $(SRC)
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(EXE)
+
+$(TEST_EXE): $(TEST_SRC)
+	$(CXX) $(CXXFLAGS) $(TEST_SRC) -o $(TEST_EXE)
+
+test: $(TEST_EXE)
+	$(RUN)$(TEST_EXE)
 
 clean:
-	$(RM) $(EXE)
+	$(RM) $(EXE) $(TEST_EXE)
 
 rebuild: clean all
 
-.PHONY: all clean rebuild
+.PHONY: all test clean rebuild
