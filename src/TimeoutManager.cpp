@@ -1,5 +1,4 @@
 #include "../include/TimeoutManager.hpp"
-
 #include <algorithm>
 #include <stdexcept>
 
@@ -11,11 +10,10 @@ TimeoutManager::TimeoutManager(TimeoutConfig config) : config_(config) {
 
 const TimeoutConfig &TimeoutManager::config() const { return config_; }
 
-std::vector<TimeoutRecord>
-TimeoutManager::checkTimeouts(int currentTime,
-                              std::map<std::string, Process> &processes,
-                              std::map<std::string, Resource> &resources,
-                              std::vector<PendingRequest> &pendingRequests) {
+std::vector<TimeoutRecord> TimeoutManager::checkTimeouts(
+    int currentTime, std::map<std::string, Process> &processes,
+    std::map<std::string, Resource> &resources,
+    std::vector<PendingRequest> &pendingRequests, DeadlockDetector &detector) {
   std::vector<TimeoutRecord> records;
   for (std::size_t index = 0; index < pendingRequests.size();) {
     auto request = pendingRequests[index];
@@ -31,9 +29,11 @@ TimeoutManager::checkTimeouts(int currentTime,
       continue;
     }
 
-    // TODO(Khanh): thay gia tri nay bang ket qua DeadlockDetector/Wait-For
-    // Graph. Phan Kim chi xu ly timeout; detector la phan rieng cua Khanh.
-    bool deadlocked = false;
+    // True positive = process nay thuc su nam trong chu trinh cho (deadlock).
+    // Chi check rieng process bi timeout, khong dung cycle toan cuc -> tranh
+    // tinh nham false positive cho process cho lau ma khong deadlock.
+    bool deadlocked = detector.isInDeadlock(request.processId);
+
     if (config_.strategy == TimeoutStrategy::Kill) {
       records.push_back(killProcess(currentTime, process, request, waitingTime,
                                     deadlocked, resources, pendingRequests));
@@ -114,3 +114,4 @@ TimeoutRecord TimeoutManager::retryRequest(
                        true,
                        !deadlocked};
 }
+

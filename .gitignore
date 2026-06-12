@@ -1,3 +1,8 @@
 build/
 *.exe
 *.obj
+*.o
+*.a
+
+# Built executable (no extension on *nix)
+/timeout_strategy

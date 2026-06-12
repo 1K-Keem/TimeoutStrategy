@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../include/DeadlockDetector.hpp"
 #include "../include/Models.hpp"
 #include "../include/TimeoutManager.hpp"
 
@@ -14,6 +13,8 @@ public:
   SimulationEngine(const TimeoutConfig &config);
 
   SimulationMetrics run(const vector<Event> &events);
+
+  friend class TimeoutManager;
 
 private:
   TimeoutManager timeoutManager_;
