@@ -10,13 +10,21 @@ SRC = \
 
 TARGET = timeout_strategy
 
+ifeq ($(OS),Windows_NT)
+	RM = del /f /q
+	EXE = $(TARGET).exe
+else
+	RM = rm -f
+	EXE = $(TARGET)
+endif
+
 all: $(TARGET)
 
 $(TARGET): $(SRC)
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
 
 clean:
-	rm -f $(TARGET)
+	$(RM) $(EXE)
 
 rebuild: clean all
 
