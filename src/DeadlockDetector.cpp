@@ -65,3 +65,21 @@ bool WFGraph::hasCycle() {
 bool WFGraph::deadlockDetection() { return hasCycle(); }
 
 bool WFGraph::precheck_deadlock() { return false; }
+
+// DeadlockDetector
+
+void DeadlockDetector::addWaitRelation(const std::string &waitingPid,
+                                       const std::string &holdingPid) {
+
+  graph.addEdge(waitingPid, holdingPid);
+}
+
+void DeadlockDetector::removeWaitRelation(const std::string &waitingPid,
+                                          const std::string &holdingPid) {
+
+  graph.removeEdge(waitingPid, holdingPid);
+}
+
+bool DeadlockDetector::detectDeadlock() { return graph.deadlockDetection(); }
+
+bool DeadlockDetector::precheckDeadlock() { return graph.precheck_deadlock(); }
