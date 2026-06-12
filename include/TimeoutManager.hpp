@@ -44,6 +44,7 @@ private:
         PendingRequest request,
         int waitingTime,
         bool deadlocked,
+        std::map<std::string, Resource>& resources,
         std::vector<PendingRequest>& pendingRequests,
         std::size_t requestIndex
     );

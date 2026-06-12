@@ -41,8 +41,11 @@ std::vector<TimeoutRecord> TimeoutManager::checkTimeouts(
             records.push_back(killProcess(currentTime, process, request, waitingTime, deadlocked, resources, pendingRequests));
             index = 0;
         } else {
-            records.push_back(retryRequest(currentTime, process, request, waitingTime, deadlocked, pendingRequests, index));
-            ++index;
+            auto record = retryRequest(currentTime, process, request, waitingTime, deadlocked, resources, pendingRequests, index);
+            records.push_back(record);
+            if (record.killed) {
+                index = 0;
+            }
         }
     }
     return records;
@@ -84,6 +87,7 @@ TimeoutRecord TimeoutManager::retryRequest(
     PendingRequest request,
     int waitingTime,
     bool deadlocked,
+    std::map<std::string, Resource>& resources,
     std::vector<PendingRequest>& pendingRequests,
     std::size_t requestIndex
 ) {
@@ -93,8 +97,7 @@ TimeoutRecord TimeoutManager::retryRequest(
     process.waitingFor.reset();
 
     if (request.retryCount > config_.maxRetries) {
-        process.state = ProcessState::Terminated;
-        return TimeoutRecord{currentTime, process.id, request.resourceId, waitingTime, config_.strategy, deadlocked, true, false, !deadlocked};
+        return killProcess(currentTime, process, request, waitingTime, deadlocked, resources, pendingRequests);
     }
 
     process.state = ProcessState::Running;
