@@ -3,6 +3,14 @@ build/
 *.obj
 *.o
 *.a
+*.pyc
+__pycache__/
+
+# Benchmark outputs
+benchmark/*.csv
+benchmark/*.png
+benchmark/*.pdf
+benchmark/*.svg
 
 # Built executables (no extension on *nix)
 /timeout_strategy
