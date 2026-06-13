@@ -20,6 +20,12 @@ Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằ
 
 Yêu cầu: trình biên dịch C++17 (`g++` >= 7 hoặc `clang++`), tùy chọn `cmake`/`make`. Code thuần chuẩn C++17, không phụ thuộc API riêng OS, chạy trên Linux, macOS và Windows.
 
+### Build và chạy ngay
+```bash
+chmod +x run.sh
+./run.sh data/three_process_deadlock.csv 3 kill
+```
+
 ### Linux / macOS
 
 ```bash
@@ -28,12 +34,7 @@ make test       # build + chạy test
 make clean
 ```
 
-Hoặc dùng script:
 
-```bash
-chmod +x run.sh
-./run.sh data/three_process_deadlock.csv 3 kill
-```
 
 Hoặc g++ trực tiếp:
 
