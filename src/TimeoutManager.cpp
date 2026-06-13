@@ -4,18 +4,18 @@
 
 TimeoutManager::TimeoutManager(TimeoutConfig config) : config_(config) {
   if (config_.timeout < 1) {
-    throw std::invalid_argument("TIMEOUT must be >= 1");
+    throw invalid_argument("TIMEOUT must be >= 1");
   }
 }
 
 const TimeoutConfig &TimeoutManager::config() const { return config_; }
 
-std::vector<TimeoutRecord> TimeoutManager::checkTimeouts(
-    int currentTime, std::map<std::string, Process> &processes,
-    std::map<std::string, Resource> &resources,
-    std::vector<PendingRequest> &pendingRequests, DeadlockDetector &detector) {
-  std::vector<TimeoutRecord> records;
-  for (std::size_t index = 0; index < pendingRequests.size();) {
+vector<TimeoutRecord> TimeoutManager::checkTimeouts(
+    int currentTime, map<string, Process> &processes,
+    map<string, Resource> &resources,
+    vector<PendingRequest> &pendingRequests, DeadlockDetector &detector) {
+  vector<TimeoutRecord> records;
+  for (size_t index = 0; index < pendingRequests.size();) {
     auto request = pendingRequests[index];
     auto &process = processes.at(request.processId);
     if (process.state != ProcessState::Blocked) {
@@ -60,8 +60,8 @@ TimeoutRecord
 TimeoutManager::killProcess(int currentTime, Process &process,
                             const PendingRequest &request, int waitingTime,
                             bool deadlocked,
-                            std::map<std::string, Resource> &resources,
-                            std::vector<PendingRequest> &pendingRequests) {
+                            map<string, Resource> &resources,
+                            vector<PendingRequest> &pendingRequests) {
   process.state = ProcessState::Terminated;
   process.requestTime.reset();
   process.waitingFor.reset();
@@ -73,7 +73,7 @@ TimeoutManager::killProcess(int currentTime, Process &process,
   }
   process.heldResources.clear();
 
-  pendingRequests.erase(std::remove_if(pendingRequests.begin(),
+  pendingRequests.erase(remove_if(pendingRequests.begin(),
                                        pendingRequests.end(),
                                        [&](const PendingRequest &item) {
                                          return item.processId == process.id;
@@ -94,8 +94,8 @@ TimeoutManager::killProcess(int currentTime, Process &process,
 
 TimeoutRecord TimeoutManager::retryRequest(
     int currentTime, Process &process, PendingRequest request, int waitingTime,
-    bool deadlocked, std::map<std::string, Resource> &resources,
-    std::vector<PendingRequest> &pendingRequests, std::size_t requestIndex) {
+    bool deadlocked, map<string, Resource> &resources,
+    vector<PendingRequest> &pendingRequests, size_t requestIndex) {
   pendingRequests.erase(pendingRequests.begin() +
                         static_cast<long long>(requestIndex));
   request.retryCount += 1;
@@ -126,8 +126,8 @@ TimeoutRecord TimeoutManager::retryRequest(
 TimeoutRecord TimeoutManager::rollbackProcess(
     int currentTime, Process &process, const PendingRequest &request,
     int waitingTime, bool deadlocked,
-    std::map<std::string, Resource> &resources,
-    std::vector<PendingRequest> &pendingRequests) {
+    map<string, Resource> &resources,
+    vector<PendingRequest> &pendingRequests) {
   process.rollbackCount += 1;
 
   // Vuot nguong rollback -> leo thang sang kill de tranh livelock.
@@ -145,7 +145,7 @@ TimeoutRecord TimeoutManager::rollbackProcess(
   process.heldResources.clear();
 
   // Xoa moi pending cua process (engine se re-inject lai tu dau).
-  pendingRequests.erase(std::remove_if(pendingRequests.begin(),
+  pendingRequests.erase(remove_if(pendingRequests.begin(),
                                        pendingRequests.end(),
                                        [&](const PendingRequest &item) {
                                          return item.processId == process.id;

@@ -37,11 +37,11 @@ public:
   DeadlockDetector() = default;
   ~DeadlockDetector() = default;
 
-  void addWaitRelation(const std::string &waitingPid,
-                       const std::string &holdingPid);
+  void addWaitRelation(const string &waitingPid,
+                       const string &holdingPid);
 
-  void removeWaitRelation(const std::string &waitingPid,
-                          const std::string &holdingPid);
+  void removeWaitRelation(const string &waitingPid,
+                          const string &holdingPid);
 
   void removeWatingProcess(const string &pid);
   void removeProcess(const string &pid);
@@ -49,5 +49,5 @@ public:
   void clear();
 
   bool detectDeadlock();
-  bool isInDeadlock(const std::string &pid);
+  bool isInDeadlock(const string &pid);
 };

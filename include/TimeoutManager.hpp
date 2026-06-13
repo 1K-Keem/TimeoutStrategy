@@ -17,10 +17,10 @@ class TimeoutManager {
 public:
   explicit TimeoutManager(TimeoutConfig config);
 
-  std::vector<TimeoutRecord>
-  checkTimeouts(int currentTime, std::map<std::string, Process> &processes,
-                std::map<std::string, Resource> &resources,
-                std::vector<PendingRequest> &pendingRequests,
+  vector<TimeoutRecord>
+  checkTimeouts(int currentTime, map<string, Process> &processes,
+                map<string, Resource> &resources,
+                vector<PendingRequest> &pendingRequests,
                 DeadlockDetector &detector);
 
   const TimeoutConfig &config() const;
@@ -31,20 +31,20 @@ private:
   TimeoutRecord killProcess(int currentTime, Process &process,
                             const PendingRequest &request, int waitingTime,
                             bool deadlocked,
-                            std::map<std::string, Resource> &resources,
-                            std::vector<PendingRequest> &pendingRequests);
+                            map<string, Resource> &resources,
+                            vector<PendingRequest> &pendingRequests);
 
   TimeoutRecord retryRequest(int currentTime, Process &process,
                              PendingRequest request, int waitingTime,
                              bool deadlocked,
-                             std::map<std::string, Resource> &resources,
-                             std::vector<PendingRequest> &pendingRequests,
-                             std::size_t requestIndex);
+                             map<string, Resource> &resources,
+                             vector<PendingRequest> &pendingRequests,
+                             size_t requestIndex);
 
   TimeoutRecord rollbackProcess(int currentTime, Process &process,
                                 const PendingRequest &request, int waitingTime,
                                 bool deadlocked,
-                                std::map<std::string, Resource> &resources,
-                                std::vector<PendingRequest> &pendingRequests);
+                                map<string, Resource> &resources,
+                                vector<PendingRequest> &pendingRequests);
 };
 

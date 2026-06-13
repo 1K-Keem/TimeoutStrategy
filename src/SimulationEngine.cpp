@@ -7,13 +7,16 @@
 SimulationEngine::SimulationEngine(const TimeoutConfig &config, bool verbose)
     : timeoutManager_(config), verbose_(verbose) {}
 
-void SimulationEngine::log(int currentTime, const string &message) const {
-  if (verbose_) {
-    std::cout << "Time " << currentTime << ": " << message << "\n";
+void SimulationEngine::log(int currentTime, const string &message) const
+{
+  if (verbose_)
+  {
+    cout << "Time " << currentTime << ": " << message << "\n";
   }
 }
 
-void SimulationEngine::resetState() {
+void SimulationEngine::resetState()
+{
   processes_.clear();
   resources_.clear();
   pendingRequests_.clear();
@@ -23,8 +26,10 @@ void SimulationEngine::resetState() {
   deadlockDetector_.clear();
 }
 
-void SimulationEngine::registerEventSources(const vector<Event> &events) {
-  for (const auto &event : events) {
+void SimulationEngine::registerEventSources(const vector<Event> &events)
+{
+  for (const auto &event : events)
+  {
     ++remainingEventCount_[event.processId];
     processEvents_[event.processId].push_back(event);
     ensureProcessExists(event.processId);
@@ -32,8 +37,10 @@ void SimulationEngine::registerEventSources(const vector<Event> &events) {
 }
 
 // Them Process vao Map neu chua ton tai va cap nhat tong so process
-void SimulationEngine::ensureProcessExists(const string &processId) {
-  if (processes_.find(processId) == processes_.end()) {
+void SimulationEngine::ensureProcessExists(const string &processId)
+{
+  if (processes_.find(processId) == processes_.end())
+  {
     Process process;
     process.id = processId;
     processes_.emplace(processId, std::move(process));
@@ -42,9 +49,11 @@ void SimulationEngine::ensureProcessExists(const string &processId) {
 }
 
 // Them Resource vao Map neu chua ton tai va tra ve tham chieu den Resource do
-Resource &SimulationEngine::ensureResourceExists(const string &resourceId) {
+Resource &SimulationEngine::ensureResourceExists(const string &resourceId)
+{
   auto it = resources_.find(resourceId);
-  if (it == resources_.end()) {
+  if (it == resources_.end())
+  {
     Resource resource;
     resource.id = resourceId;
     auto [newIt, inserted] = resources_.emplace(resourceId, std::move(resource));
@@ -53,9 +62,11 @@ Resource &SimulationEngine::ensureResourceExists(const string &resourceId) {
   return it->second;
 }
 
-SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
+SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents)
+{
   resetState();
-  if (sortedEvents.empty()) {
+  if (sortedEvents.empty())
+  {
     return metrics_;
   }
 
@@ -64,7 +75,8 @@ SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
   int currentTime = sortedEvents.front().time;
   size_t nextEventIndex = 0;
 
-  while (true) {
+  while (true)
+  {
     // Giai phong tai nguyen het han
     releaseExpiredResources(currentTime);
 
@@ -84,7 +96,8 @@ SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
     checkAndCompleteProcesses(currentTime);
 
     if (nextEventIndex >= sortedEvents.size() && pendingRequests_.empty() &&
-        !hasFutureRelease(currentTime)) {
+        !hasFutureRelease(currentTime))
+    {
       break;
     }
 
@@ -96,31 +109,41 @@ SimulationMetrics SimulationEngine::run(const vector<Event> &sortedEvents) {
 
 void SimulationEngine::processEventsAt(int currentTime,
                                        const vector<Event> &events,
-                                       size_t &nextEventIndex) {
+                                       size_t &nextEventIndex)
+{
   while (nextEventIndex < events.size() &&
-         events[nextEventIndex].time == currentTime) {
+         events[nextEventIndex].time == currentTime)
+  {
     const auto &event = events[nextEventIndex];
     ensureProcessExists(event.processId);
     auto &process = processes_.at(event.processId);
     auto &resource = ensureResourceExists(event.resourceId);
 
-    if (event.action == "request") {
-      if (resource.isFree()) {
+    if (event.action == "request")
+    {
+      if (resource.isFree())
+      {
         PendingRequest request{event.processId, event.resourceId, currentTime,
                                event.duration, 0};
         allocateResource(process, request, currentTime);
         log(currentTime, event.processId + " requests " + event.resourceId +
                              " -> Granted");
-        if (event.duration == 0) {
+        if (event.duration == 0)
+        {
           completeProcess(process, currentTime);
         }
-      } else {
+      }
+      else
+      {
         blockProcess(process, event, currentTime);
         log(currentTime, event.processId + " requests " + event.resourceId +
                              " -> Blocked (held by " + *resource.owner + ")");
       }
-    } else if (event.action == "release") {
-      if (resource.owner && *resource.owner == event.processId) {
+    }
+    else if (event.action == "release")
+    {
+      if (resource.owner && *resource.owner == event.processId)
+      {
         releaseResource(event.resourceId);
         log(currentTime,
             event.processId + " releases " + event.resourceId);
@@ -128,7 +151,8 @@ void SimulationEngine::processEventsAt(int currentTime,
     }
 
     auto remainingIt = remainingEventCount_.find(event.processId);
-    if (remainingIt != remainingEventCount_.end()) {
+    if (remainingIt != remainingEventCount_.end())
+    {
       --remainingIt->second;
     }
 
@@ -136,41 +160,52 @@ void SimulationEngine::processEventsAt(int currentTime,
   }
 }
 
-void SimulationEngine::releaseExpiredResources(int currentTime) {
+void SimulationEngine::releaseExpiredResources(int currentTime)
+{
   vector<string> resourcesToRelease;
-  for (const auto &[resourceId, resource] : resources_) {
+  for (const auto &[resourceId, resource] : resources_)
+  {
     if (resource.releaseTime.has_value() &&
-        *resource.releaseTime <= currentTime) {
+        *resource.releaseTime <= currentTime)
+    {
       resourcesToRelease.push_back(resourceId);
     }
   }
-  for (const auto &resourceId : resourcesToRelease) {
+  
+  for (const auto &resourceId : resourcesToRelease)
+  {
     releaseResource(resourceId);
   }
 }
 
-void SimulationEngine::grantPendingRequests(int currentTime) {
+void SimulationEngine::grantPendingRequests(int currentTime)
+{
   pendingRequests_.erase(
       remove_if(pendingRequests_.begin(), pendingRequests_.end(),
-                [&](PendingRequest &request) {
+                [&](PendingRequest &request)
+                {
                   auto &process = processes_.at(request.processId);
                   // Bo cac pending cua process da ket thuc (tranh "hoi sinh"
                   // process da Completed/Terminated -> double-count throughput).
-                  if (!process.isAlive()) {
+                  if (!process.isAlive())
+                  {
                     return true;
                   }
-                  if (request.requestTime > currentTime) {
+                  if (request.requestTime > currentTime)
+                  {
                     return false;
                   }
                   auto &resource = ensureResourceExists(request.resourceId);
-                  if (!resource.isFree()) {
+                  if (!resource.isFree())
+                  {
                     return false;
                   }
                   allocateResource(process, request, currentTime);
                   log(currentTime, request.processId + " acquires " +
                                        request.resourceId +
                                        " -> Granted (was waiting)");
-                  if (request.duration == 0) {
+                  if (request.duration == 0)
+                  {
                     completeProcess(process, currentTime);
                   }
                   return true;
@@ -178,21 +213,26 @@ void SimulationEngine::grantPendingRequests(int currentTime) {
       pendingRequests_.end());
 }
 
-void SimulationEngine::applyTimeouts(int currentTime) {
+void SimulationEngine::applyTimeouts(int currentTime)
+{
   const auto records = timeoutManager_.checkTimeouts(
       currentTime, processes_, resources_, pendingRequests_, deadlockDetector_);
-  for (const auto &record : records) {
+  for (const auto &record : records)
+  {
     ++metrics_.timeoutEvents;
 
     // False positive: process bi timeout nhung KHONG nam trong chu trinh that.
-    if (!record.deadlockedAtTimeout) {
+    if (!record.deadlockedAtTimeout)
+    {
       ++metrics_.falsePositives;
     }
 
-    if (record.retried) {
+    if (record.retried)
+    {
       ++metrics_.retryEvents;
     }
-    if (record.rolledBack) {
+    if (record.rolledBack)
+    {
       ++metrics_.rollbackEvents;
     }
 
@@ -203,22 +243,28 @@ void SimulationEngine::applyTimeouts(int currentTime) {
     // Cap nhat Wait-For Graph theo hanh dong, do cycle truoc/sau de biet
     // deadlock co thuc su duoc go khong.
     const bool cycleBefore = deadlockDetector_.detectDeadlock();
-    if (record.killed) {
+    if (record.killed)
+    {
       deadlockDetector_.removeProcess(record.processId);
       ++metrics_.killedProcesses;
       log(currentTime, base + " -> Killed");
-    } else if (record.rolledBack) {
+    }
+    else if (record.rolledBack)
+    {
       // Process tra ve trang thai ban dau: go khoi do thi va re-inject events.
       deadlockDetector_.removeProcess(record.processId);
       replayProcess(record.processId, currentTime);
       log(currentTime, base + " -> Rolled back");
-    } else if (record.retried) {
+    }
+    else if (record.retried)
+    {
       deadlockDetector_.removeWatingProcess(record.processId);
       log(currentTime, base + " -> Retry");
     }
     const bool cycleAfter = deadlockDetector_.detectDeadlock();
 
-    if (record.deadlockedAtTimeout && cycleBefore && !cycleAfter) {
+    if (record.deadlockedAtTimeout && cycleBefore && !cycleAfter)
+    {
       ++metrics_.deadlockResolved;
       log(currentTime, "Deadlock resolved (cycle broken)");
     }
@@ -227,16 +273,19 @@ void SimulationEngine::applyTimeouts(int currentTime) {
 
 // Rollback: chay lai process tu dau bang cach re-inject toan bo request event
 // cua no vao hang doi pending tai thoi diem hien tai.
-void SimulationEngine::replayProcess(const string &processId, int currentTime) {
+void SimulationEngine::replayProcess(const string &processId, int currentTime)
+{
   auto it = processEvents_.find(processId);
-  if (it == processEvents_.end()) {
+  if (it == processEvents_.end())
+  {
     return;
   }
 
   // Don sach pending con sot cua process (phong truong hop).
   pendingRequests_.erase(remove_if(pendingRequests_.begin(),
                                    pendingRequests_.end(),
-                                   [&](const PendingRequest &item) {
+                                   [&](const PendingRequest &item)
+                                   {
                                      return item.processId == processId;
                                    }),
                          pendingRequests_.end());
@@ -250,8 +299,10 @@ void SimulationEngine::replayProcess(const string &processId, int currentTime) {
   process.requestTime.reset();
   process.waitingFor.reset();
 
-  for (const auto &event : it->second) {
-    if (event.action == "request") {
+  for (const auto &event : it->second)
+  {
+    if (event.action == "request")
+    {
       pendingRequests_.push_back(PendingRequest{
           event.processId, event.resourceId, currentTime, event.duration, 0});
     }
@@ -260,7 +311,8 @@ void SimulationEngine::replayProcess(const string &processId, int currentTime) {
 
 void SimulationEngine::allocateResource(Process &process,
                                         PendingRequest &request,
-                                        int currentTime) {
+                                        int currentTime)
+{
   auto &resource = ensureResourceExists(request.resourceId);
   resource.owner = process.id;
   process.heldResources.insert(request.resourceId);
@@ -268,18 +320,23 @@ void SimulationEngine::allocateResource(Process &process,
   process.requestTime.reset();
   process.waitingFor.reset();
 
-  if (request.duration > 0) {
+  if (request.duration > 0)
+  {
     resource.releaseTime = currentTime + request.duration;
-  } else {
+  }
+  else
+  {
     resource.releaseTime.reset();
   }
 
   deadlockDetector_.removeWatingProcess(process.id);
 }
 
-void SimulationEngine::completeProcess(Process &process, int currentTime) {
+void SimulationEngine::completeProcess(Process &process, int currentTime)
+{
   if (process.state == ProcessState::Completed ||
-      process.state == ProcessState::Terminated) {
+      process.state == ProcessState::Terminated)
+  {
     return;
   }
 
@@ -289,7 +346,8 @@ void SimulationEngine::completeProcess(Process &process, int currentTime) {
   process.requestTime.reset();
   process.waitingFor.reset();
 
-  for (const auto &resourceId : process.heldResources) {
+  for (const auto &resourceId : process.heldResources)
+  {
     auto &resource = resources_.at(resourceId);
     resource.owner.reset();
     resource.releaseTime.reset();
@@ -299,7 +357,8 @@ void SimulationEngine::completeProcess(Process &process, int currentTime) {
   log(currentTime, process.id + " -> Completed");
 }
 
-void SimulationEngine::releaseResource(const string &resourceId) {
+void SimulationEngine::releaseResource(const string &resourceId)
+{
   auto &resource = resources_.at(resourceId);
   if (!resource.owner.has_value())
     return;
@@ -313,11 +372,14 @@ void SimulationEngine::releaseResource(const string &resourceId) {
   ownerProcess.heldResources.erase(resourceId);
 }
 
-void SimulationEngine::checkAndCompleteProcesses(int currentTime) {
-  for (auto &[id, process] : processes_) {
+void SimulationEngine::checkAndCompleteProcesses(int currentTime)
+{
+  for (auto &[id, process] : processes_)
+  {
     if (process.state == ProcessState::Running &&
         process.heldResources.empty() && remainingEventCount_[id] == 0 &&
-        !process.waitingFor.has_value()) {
+        !process.waitingFor.has_value())
+    {
       completeProcess(process, currentTime);
     }
   }
@@ -325,7 +387,8 @@ void SimulationEngine::checkAndCompleteProcesses(int currentTime) {
 
 // Chan process neu tai nguyen dang yeu cau khong co san
 void SimulationEngine::blockProcess(Process &process, const Event &event,
-                                    int currentTime) {
+                                    int currentTime)
+{
   process.state = ProcessState::Blocked;
   process.requestTime = currentTime;
   process.waitingFor = event.resourceId;
@@ -333,26 +396,18 @@ void SimulationEngine::blockProcess(Process &process, const Event &event,
                                             currentTime, event.duration, 0});
 
   auto &resource = this->ensureResourceExists(event.resourceId);
-  if (resource.owner.has_value()) {
+  if (resource.owner.has_value())
+  {
     deadlockDetector_.addWaitRelation(process.id, *resource.owner);
   }
 }
 
 // Kiem tra co tai nguyen nao se duoc giai phong trong tuong lai khong
-bool SimulationEngine::hasFutureRelease(int currentTime) const {
-  return any_of(resources_.begin(), resources_.end(), [&](const auto &pair) {
+bool SimulationEngine::hasFutureRelease(int currentTime) const
+{
+  return any_of(resources_.begin(), resources_.end(), [&](const auto &pair)
+                {
     const auto &resource = pair.second;
     return resource.releaseTime.has_value() &&
-           *resource.releaseTime > currentTime;
-  });
+           *resource.releaseTime > currentTime; });
 }
-
-
-
-
-
-
-
-
-
-
