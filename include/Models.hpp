@@ -44,6 +44,7 @@ struct Process {
     std::optional<std::string> waitingFor;
     int retryAfter{};
     int rollbackCount{};
+    bool completionCounted{};
 
     bool isAlive() const {
         return state != ProcessState::Completed && state != ProcessState::Terminated;

@@ -308,6 +308,22 @@ static void testEngineRollback() {
   std::remove(path.c_str());
 }
 
+static void testTc2RollbackThroughputUnique() {
+  std::printf("testTc2RollbackThroughputUnique\n");
+  auto events = CSVParser::parse("data/tc_2.csv");
+
+  TimeoutConfig cfg;
+  cfg.timeout = 1;
+  cfg.strategy = TimeoutStrategy::Rollback;
+  cfg.maxRollbacks = 3;
+  SimulationEngine engine(cfg);
+  auto m = engine.run(events);
+
+  CHECK(m.totalProcesses == 8);
+  CHECK(m.completedProcesses == m.totalProcesses);
+  CHECK(m.throughput() == 1.0);
+}
+
 int main() {
   testParser();
   testDetector();
@@ -316,6 +332,7 @@ int main() {
   testTimeoutRollback();
   testEngineThroughputBounded();
   testEngineRollback();
+  testTc2RollbackThroughputUnique();
 
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

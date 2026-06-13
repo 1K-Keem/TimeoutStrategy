@@ -353,7 +353,11 @@ void SimulationEngine::completeProcess(Process &process, int currentTime)
     resource.releaseTime.reset();
   }
   process.heldResources.clear();
-  ++metrics_.completedProcesses;
+  if (!process.completionCounted)
+  {
+    ++metrics_.completedProcesses;
+    process.completionCounted = true;
+  }
   log(currentTime, process.id + " -> Completed");
 }
 
