@@ -23,7 +23,8 @@ Yêu cầu: trình biên dịch C++17 (`g++` >= 7 hoặc `clang++`), tùy chọn
 ### Build và chạy ngay
 ```bash
 chmod +x run.sh
-./run.sh data/three_process_deadlock.csv 3 kill
+./run.sh benchmark      # Chạy benchmark
+./run.sh data/three_process_deadlock.csv 3 kill   # Chạy mô phỏng với tùy chọn
 ```
 
 ### Linux / macOS
