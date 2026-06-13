@@ -1,9 +1,1 @@
-# Giu line endings on dinh cross-platform
 * text=auto
-
-# Shell scripts luon dung LF (chay tren Linux/macOS)
-*.sh text eol=lf
-Makefile text eol=lf
-
-# CSV giu LF
-*.csv text eol=lf

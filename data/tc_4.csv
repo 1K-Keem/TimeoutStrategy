@@ -1,0 +1,13 @@
+time,process_id,action,resource_id,duration
+0,P1,request,R1,20
+1,P2,request,R2,20
+2,P3,request,R3,20
+3,P4,request,R4,20
+4,P5,request,R5,20
+5,P2,request,R1,0
+6,P3,request,R2,0
+7,P4,request,R3,0
+8,P5,request,R4,0
+9,P1,request,R5,0
+10,P6,request,R1,0
+11,P7,request,R5,0

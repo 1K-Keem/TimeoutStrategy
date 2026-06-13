@@ -140,6 +140,61 @@ g++ -std=c++17 -Iinclude tests/test_main.cpp src/CSVParser.cpp src/DeadlockDetec
 ./run_tests
 ```
 
+## Benchmark
+
+Chạy benchmark để so sánh hiệu suất của 3 chiến lược với các timeout trên tất cả testcase.
+
+### Chạy toàn bộ benchmark (Export + Plot)
+
+Script `benchmark/benchmark.sh` chạy cả 2 bước: export kết quả và vẽ biểu đồ.
+
+```bash
+chmod +x benchmark/benchmark.sh
+./benchmark/benchmark.sh
+```
+
+### Export kết quả benchmark
+
+Script `benchmark/export_benchmark.sh` chạy tất cả testcase với 3 chiến lược (kill, retry, rollback) ở các timeout khác nhau và lưu kết quả vào CSV:
+
+**Linux / macOS:**
+
+```bash
+chmod +x benchmark/export_benchmark.sh
+./benchmark/export_benchmark.sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+bash benchmark/export_benchmark.sh
+```
+
+Kết quả được lưu vào `benchmark/benchmark_results.csv` với các cột:
+- `testcase`: tên file testcase
+- `timeout`: giá trị TIMEOUT được kiểm tra
+- `strategy`: kill / retry / rollback
+- `killed`: số process bị kill
+- `resolved`: số deadlock được phát hiện và giải quyết
+- `throughput`: tỷ lệ process hoàn thành
+- `fp_rate`: false positive rate
+
+### Plot visualization
+
+Script `benchmark/plot_benchmark.py` vẽ biểu đồ so sánh hiệu suất:
+
+```bash
+python benchmark/plot_benchmark.py
+```
+
+Hoặc trên Windows:
+
+```powershell
+python benchmark/plot_benchmark.py
+```
+
+Output: các file PNG lưu vào `benchmark/` với tên như `benchmark_testcase_summary.png`, `benchmark_timeout_comparison.png`, v.v.
+
 ## Cơ chế timeout
 
 - Khi process bị block, engine tạo `PendingRequest` có `requestTime`.

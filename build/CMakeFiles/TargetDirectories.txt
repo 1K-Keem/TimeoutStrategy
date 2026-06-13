@@ -1,0 +1,6 @@
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/timeout_kim.dir
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/timeout_strategy.dir
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/run_tests.dir
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/test.dir
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/edit_cache.dir
+D:/Edu/OS/extends/TimeoutStrategy/build/CMakeFiles/rebuild_cache.dir
