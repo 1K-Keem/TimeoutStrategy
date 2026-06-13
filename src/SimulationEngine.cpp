@@ -117,6 +117,21 @@ void SimulationEngine::processEventsAt(int currentTime,
     const auto &event = events[nextEventIndex];
     ensureProcessExists(event.processId);
     auto &process = processes_.at(event.processId);
+
+    // Process da Completed/Terminated khong duoc tiep tuc nhan event.
+    // Neu khong chan o day, kill/complete co the bi "hoi sinh" boi cac
+    // event con lai trong dataset.
+    if (!process.isAlive())
+    {
+      auto remainingIt = remainingEventCount_.find(event.processId);
+      if (remainingIt != remainingEventCount_.end())
+      {
+        --remainingIt->second;
+      }
+      ++nextEventIndex;
+      continue;
+    }
+
     auto &resource = ensureResourceExists(event.resourceId);
 
     if (event.action == "request")

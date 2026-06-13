@@ -324,6 +324,21 @@ static void testTc2RollbackThroughputUnique() {
   CHECK(m.throughput() == 1.0);
 }
 
+static void testTc2KillNoRevive() {
+  std::printf("testTc2KillNoRevive\n");
+  auto events = CSVParser::parse("data/tc_2.csv");
+
+  TimeoutConfig cfg;
+  cfg.timeout = 4;
+  cfg.strategy = TimeoutStrategy::Kill;
+  SimulationEngine engine(cfg);
+  auto m = engine.run(events);
+
+  CHECK(m.totalProcesses == 8);
+  CHECK(m.completedProcesses == 7);
+  CHECK(m.throughput() == 0.875);
+}
+
 int main() {
   testParser();
   testDetector();
@@ -333,6 +348,7 @@ int main() {
   testEngineThroughputBounded();
   testEngineRollback();
   testTc2RollbackThroughputUnique();
+  testTc2KillNoRevive();
 
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

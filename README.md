@@ -1,8 +1,8 @@
 # TimeoutStrategy
 
-Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằng C++17. Hệ thống xử lý deadlock theo thời gian logic (mỗi event = 1 time unit) với 3 chiến lược timeout — `kill`, `retry`, `rollback` — và đối chiếu với deadlock detection (Wait-For Graph) làm ground truth để đo false positive.
+Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằng C++17. Hệ thống xử lý deadlock theo thời gian logic (mỗi event = 1 time unit) với 3 chiến lược timeout: `kill`, `retry`, `rollback`, và đối chiếu với deadlock detection (Wait-For Graph) làm ground truth để đo false positive.
 
-Định nghĩa cốt lõi: `waiting_time = current_time - request_time`. Khi `waiting_time >= TIMEOUT` → kích hoạt xử lý.
+Định nghĩa cốt lõi: `waiting_time = current_time - request_time`. Khi `waiting_time >= TIMEOUT` thì kích hoạt xử lý.
 
 ## Cấu trúc
 
@@ -18,7 +18,7 @@ Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằ
 
 ## Build
 
-Yêu cầu: trình biên dịch C++17 (`g++` >= 7 hoặc `clang++`), tùy chọn `cmake`/`make`. Code thuần chuẩn C++17, không phụ thuộc API riêng OS — chạy trên Linux, macOS và Windows.
+Yêu cầu: trình biên dịch C++17 (`g++` >= 7 hoặc `clang++`), tùy chọn `cmake`/`make`. Code thuần chuẩn C++17, không phụ thuộc API riêng OS, chạy trên Linux, macOS và Windows.
 
 ### Linux / macOS
 
@@ -64,20 +64,25 @@ ctest --test-dir build --output-on-failure
 
 Build sạch với `-Wall -Wextra`, không warning.
 
-## Chạy
+## Chạy chương trình
+
+`run.sh` là entrypoint duy nhất cho cả chạy chương trình và benchmark.
+
+### Chạy mô phỏng bình thường
 
 Linux / macOS:
 
 ```bash
-./timeout_strategy data/three_process_deadlock.csv 3 kill
-./timeout_strategy data/three_process_deadlock.csv 3 retry 1 3
-./timeout_strategy data/three_process_deadlock.csv 3 rollback 1 3
+./run.sh data/three_process_deadlock.csv 3 kill
+./run.sh data/three_process_deadlock.csv 3 retry 1 3
+./run.sh data/three_process_deadlock.csv 3 rollback 1 3
+./run.sh data/three_process_deadlock.csv 3 --compare
 ```
 
 Windows:
 
 ```powershell
-.\timeout_strategy.exe data\three_process_deadlock.csv 3 kill
+bash run.sh data/three_process_deadlock.csv 3 kill
 ```
 
 Cú pháp:
@@ -86,7 +91,7 @@ Cú pháp:
 timeout_strategy <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [max_retries|max_rollbacks] [-v|--verbose] [-c|--compare]
 ```
 
-- `timeout`: ngưỡng TIMEOUT (>= 1, mặc định 5).
+- `timeout`: ngưỡng TIMEOUT (`>= 1`, mặc định 5).
 - `strategy`: `kill` | `retry` | `rollback` (mặc định `kill`).
 - `retry_delay`: số time unit chờ trước khi xin lại (mặc định 1).
 - `max_retries` / `max_rollbacks`: số lần tối đa trước khi leo thang sang kill (mặc định 3).
@@ -96,7 +101,7 @@ timeout_strategy <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [ma
 ### Log từng sự kiện (`-v`)
 
 ```powershell
-./timeout_strategy data/three_process_deadlock.csv 3 kill -v
+./run.sh data/three_process_deadlock.csv 3 kill -v
 ```
 
 ```text
@@ -110,7 +115,7 @@ Time 7: P5 -> Completed
 ### So sánh 3 chiến lược (`-c`)
 
 ```powershell
-./timeout_strategy data/three_process_deadlock.csv 3 --compare
+./run.sh data/three_process_deadlock.csv 3 --compare
 ```
 
 ```text
@@ -120,6 +125,36 @@ kill               4       1       0         0         1       0       0.800    
 retry              5       0       5         0         1       4       1.000     0.800
 rollback           5       0       0         1         1       0       1.000     0.000
 ```
+
+## Benchmark
+
+Benchmark được chạy trực tiếp qua `run.sh` ở chế độ benchmark. Script này tự export kết quả ra CSV rồi vẽ biểu đồ.
+
+### Chạy benchmark
+
+Linux / macOS:
+
+```bash
+chmod +x run.sh
+./run.sh benchmark
+```
+
+Windows (PowerShell):
+
+```powershell
+bash run.sh benchmark
+```
+
+Kết quả được lưu vào `benchmark/benchmark_results.csv` với các cột:
+- `testcase`: tên file testcase
+- `timeout`: giá trị TIMEOUT được kiểm tra
+- `strategy`: kill / retry / rollback
+- `killed`: số process bị kill
+- `resolved`: số deadlock được phát hiện và giải quyết
+- `throughput`: tỷ lệ process hoàn thành
+- `fp_rate`: false positive rate
+
+Biểu đồ được tạo bởi `benchmark/plot_benchmark.py` và lưu trong thư mục `benchmark/` dưới dạng PNG.
 
 ## Test
 
@@ -140,69 +175,14 @@ g++ -std=c++17 -Iinclude tests/test_main.cpp src/CSVParser.cpp src/DeadlockDetec
 ./run_tests
 ```
 
-## Benchmark
-
-Chạy benchmark để so sánh hiệu suất của 3 chiến lược với các timeout trên tất cả testcase.
-
-### Chạy toàn bộ benchmark (Export + Plot)
-
-Script `benchmark/benchmark.sh` chạy cả 2 bước: export kết quả và vẽ biểu đồ.
-
-```bash
-chmod +x benchmark/benchmark.sh
-./benchmark/benchmark.sh
-```
-
-### Export kết quả benchmark
-
-Script `benchmark/export_benchmark.sh` chạy tất cả testcase với 3 chiến lược (kill, retry, rollback) ở các timeout khác nhau và lưu kết quả vào CSV:
-
-**Linux / macOS:**
-
-```bash
-chmod +x benchmark/export_benchmark.sh
-./benchmark/export_benchmark.sh
-```
-
-**Windows (PowerShell):**
-
-```powershell
-bash benchmark/export_benchmark.sh
-```
-
-Kết quả được lưu vào `benchmark/benchmark_results.csv` với các cột:
-- `testcase`: tên file testcase
-- `timeout`: giá trị TIMEOUT được kiểm tra
-- `strategy`: kill / retry / rollback
-- `killed`: số process bị kill
-- `resolved`: số deadlock được phát hiện và giải quyết
-- `throughput`: tỷ lệ process hoàn thành
-- `fp_rate`: false positive rate
-
-### Plot visualization
-
-Script `benchmark/plot_benchmark.py` vẽ biểu đồ so sánh hiệu suất:
-
-```bash
-python benchmark/plot_benchmark.py
-```
-
-Hoặc trên Windows:
-
-```powershell
-python benchmark/plot_benchmark.py
-```
-
-Output: các file PNG lưu vào `benchmark/` với tên như `benchmark_testcase_summary.png`, `benchmark_timeout_comparison.png`, v.v.
-
 ## Cơ chế timeout
 
 - Khi process bị block, engine tạo `PendingRequest` có `requestTime`.
 - Mỗi time unit, `TimeoutManager::checkTimeouts()` tính `waitingTime = currentTime - requestTime`.
 - Nếu `waitingTime >= TIMEOUT`, kích hoạt strategy:
   - `kill`: terminate process, giải phóng toàn bộ resource, xóa pending của process.
-  - `retry`: rút request hiện tại, chờ `retryDelay`, xin lại; vượt `maxRetries` → leo thang kill.
-  - `rollback`: thu hồi toàn bộ resource, đưa process về trạng thái ban đầu (`New`) và replay toàn bộ event; vượt `maxRollbacks` → leo thang kill.
+  - `retry`: rút request hiện tại, chờ `retryDelay`, xin lại; vượt `maxRetries` thì leo thang kill.
+  - `rollback`: thu hồi toàn bộ resource, đưa process về trạng thái ban đầu (`New`) và replay toàn bộ event; vượt `maxRollbacks` thì leo thang kill.
 - Trước khi xử lý, gọi `detector.isInDeadlock(pid)` để đánh dấu timeout là true positive hay false positive.
 
 Metrics: `killed_processes`, `retry_events`, `rollback_events`, `deadlock_resolved`, `throughput`, `false_positives`, `false_positive_rate`.
@@ -211,7 +191,3 @@ Metrics: `killed_processes`, `retry_events`, `rollback_events`, `deadlock_resolv
 
 - `docs_TimeoutStrategy.md`: tài liệu kỹ thuật chi tiết.
 - `review.md`: báo cáo (kiến trúc, kết quả thí nghiệm, phân tích).
-
-
-
-

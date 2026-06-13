@@ -35,6 +35,7 @@ test: $(TEST_EXE)
 
 clean:
 	$(RM) $(EXE) $(TEST_EXE)
+	rm benchmark/*.png benchmark/*.csv
 
 rebuild: clean all
 
