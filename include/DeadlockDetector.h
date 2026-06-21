@@ -29,6 +29,10 @@ int WFGraph_getOrCreatePid(
     WFGraph *graph,
     const char *pid);
 
+int WFGraph_findPid(
+    WFGraph *graph,
+    const char *pid);
+
 void WFGraph_addEdge(
     WFGraph *graph,
     const char *waitPid,

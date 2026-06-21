@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+// set 
 static char *str_dup(const char *s)
 {
     char *p = (char *)malloc(strlen(s) + 1);
@@ -53,11 +55,15 @@ static void IntSet_destroy(IntSet *s)
     s->capacity = 0;
 }
 
+
+
+
+// WGraph
 void WFGraph_init(WFGraph *graph)
 {
     graph->pidList = NULL;
     graph->pidCount = 0;
-    graph->pidCapacity = 0;
+    graph->pidCapacity = 10;
     graph->adj = NULL;
     graph->vertexCount = 0;
 }
@@ -71,11 +77,9 @@ int WFGraph_getOrCreatePid(WFGraph *graph, const char *pid)
     {
         int newCap = graph->pidCapacity ? graph->pidCapacity * 2 : 4;
 
-        graph->pidList =
-            (char **)realloc(graph->pidList, newCap * sizeof(char *));
+        graph->pidList = (char **)realloc(graph->pidList, newCap * sizeof(char *));
 
-        graph->adj =
-            (IntSet *)realloc(graph->adj, newCap * sizeof(IntSet));
+        graph->adj = (IntSet *)realloc(graph->adj, newCap * sizeof(IntSet));
 
         graph->pidCapacity = newCap;
     }
@@ -88,6 +92,20 @@ int WFGraph_getOrCreatePid(WFGraph *graph, const char *pid)
     return idx;
 }
 
+
+int WFGraph_findPid(
+    WFGraph *graph,
+    const char *pid)
+{
+    for(int i = 0; i < graph->pidCount; i++)
+    {
+        if(strcmp(graph->pidList[i], pid) == 0)
+            return i;
+    }
+
+    return -1;
+}
+
 void WFGraph_addEdge(WFGraph *graph, const char *waitPid, const char *holdPid)
 {
     int from = WFGraph_getOrCreatePid(graph, waitPid);
@@ -95,10 +113,17 @@ void WFGraph_addEdge(WFGraph *graph, const char *waitPid, const char *holdPid)
     IntSet_insert(&graph->adj[from], to);
 }
 
-void WFGraph_removeEdge(WFGraph *graph, const char *waitPid, const char *holdPid)
+void WFGraph_removeEdge(
+    WFGraph *graph,
+    const char *wait,
+    const char *hold)
 {
-    int from = WFGraph_getOrCreatePid(graph, waitPid);
-    int to = WFGraph_getOrCreatePid(graph, holdPid);
+    int from = WFGraph_findPid(graph, wait);
+    int to   = WFGraph_findPid(graph, hold);
+
+    if(from == -1 || to == -1)
+        return;
+
     IntSet_erase(&graph->adj[from], to);
 }
 
@@ -244,6 +269,7 @@ void WFGraph_clear(WFGraph *graph)
     WFGraph_init(graph);
 }
 
+//DeadlockDetector
 void DeadlockDetector_init(DeadlockDetector *detector)
 {
     WFGraph_init(&detector->graph);
