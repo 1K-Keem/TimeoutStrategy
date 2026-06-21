@@ -796,3 +796,19 @@ bool SimulationEngine_hasFutureRelease(const SimulationEngine *engine, int curre
   }
   return false;
 }
+
+// Giải phóng bộ nhớ của SimulationEngine và các trường dữ liệu liên quan
+void SimulationEngine_destroy(SimulationEngine *engine)
+{
+    if (!engine) return;
+
+    SimulationEngine_resetState(engine);
+
+    if (engine->processes_) free(engine->processes_);
+    if (engine->resources_) free(engine->resources_);
+    if (engine->pendingRequests_) free(engine->pendingRequests_);
+    if (engine->remainingEventCount_) free(engine->remainingEventCount_);
+    if (engine->processEvents_) free(engine->processEvents_);
+
+    free(engine);
+}
