@@ -5,26 +5,36 @@
 #include <string.h>
 #include <ctype.h>
 
+/*
+ * CSVParser — đọc và validate dataset CSV.
+ *
+ * Định dạng mỗi dòng (sau header): time, process_id, action, resource_id, duration
+ *   - Bỏ qua header và các dòng trống.
+ *   - Mỗi dòng phải có đúng 5 cột, nếu không sẽ exit() kèm số dòng.
+ *   - action phải là "request" hoặc "release"; duration >= 0.
+ * Sau khi đọc xong, danh sách event được sắp xếp tăng dần theo `time`.
+ */
+
 static char* trim(const char* input) {
-    // Trim dấu cách phía trước
+    // Cắt khoảng trắng phía trước.
     while (isspace((unsigned char)*input)) {
         input++;
     }
 
-    // Nếu rỗng thì return '\0'
+    // Nếu chuỗi rỗng thì trả về chuỗi rỗng được cấp phát.
     if (*input == '\0') {
         char* empty = malloc(1);
         empty[0] = '\0';
         return empty;
     }
-    
-    // Trim dấu cách phía sau
+
+    // Cắt khoảng trắng phía sau.
     const char* end = input + strlen(input) - 1;
     while (end > input && isspace((unsigned char)*end)) {
         end--;
     }
 
-    // Chỉ return bản copy
+    // Trả về bản copy của phần đã cắt.
     size_t len = (end - input) + 1;
     char* res = malloc(len + 1);
     strncpy(res, input, len);
@@ -32,15 +42,16 @@ static char* trim(const char* input) {
     return res;
 }
 
+// Tách chuỗi theo delimiter, trả về mảng các chuỗi (caller free từng phần tử).
 static char** split(const char* input, char delimiter, size_t* out_count) {
     size_t count = 0;
     size_t capacity = 10;
-    char** result = malloc(capacity * sizeof(char*)); // Vector string
+    char** result = malloc(capacity * sizeof(char*));
     const char* start = input;
     const char* end;
 
     while ((end = strchr(start, delimiter)) != NULL) {
-        // Realloc nếu cần
+        // Tăng capacity nếu cần.
         if (count >= capacity) {
             capacity *= 2;
             result = realloc(result, capacity * sizeof(char*));
@@ -54,7 +65,7 @@ static char** split(const char* input, char delimiter, size_t* out_count) {
         count++;
     }
 
-    // Vẫn còn từ sau delimiter cuối cùng
+    // Phần tử cuối cùng nằm sau delimiter cuối.
     if (count >= capacity) {
         capacity += 1;
         result = realloc(result, capacity * sizeof(char*));
@@ -69,7 +80,7 @@ static char** split(const char* input, char delimiter, size_t* out_count) {
     return result;
 }
 
-// string to int
+// Chuyển chuỗi sang int, có validate; nếu lỗi thì in kèm số dòng và exit.
 static int parseInt(const char* text, int lineNumber, const char* fieldName) {
     char* trimmed = trim(text);
     if (strlen(trimmed) == 0) {
@@ -79,10 +90,10 @@ static int parseInt(const char* text, int lineNumber, const char* fieldName) {
     }
 
     char* endptr;
-    // Hàm strtol kiểm tra được kí tự không phải số, an toàn hơn atoi()
+    // strtol cho phép phân biệt parse lỗi (an toàn hơn atoi).
     long value = strtol(trimmed, &endptr, 10);
 
-    // endptr trỏ tới kí tự đầu tiên không phải số
+    // Nếu còn ký tự không phải số -> lỗi.
     if (*endptr != '\0') {
         fprintf(stderr, "Invalid integer value for %s at line %d: '%s'\n", fieldName, lineNumber, trimmed);
         free(trimmed);
@@ -93,6 +104,7 @@ static int parseInt(const char* text, int lineNumber, const char* fieldName) {
     return (int)value;
 }
 
+// Hàm so sánh để qsort theo `time` tăng dần.
 static int compare_events(const void* a, const void* b) {
     const Event* ea = (const Event*)a;
     const Event* eb = (const Event*)b;
@@ -113,7 +125,7 @@ Event* CSVParser_parse(const char* path, size_t* out_count) {
     char line[1024];
     int lineNumber = 0;
 
-    // Parse header
+    // Đọc và bỏ qua dòng header
     if (!fgets(line, sizeof(line), file)) {
         fprintf(stderr, "CSV file is empty: %s\n", path);
         fclose(file);

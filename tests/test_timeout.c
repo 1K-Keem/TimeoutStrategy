@@ -1,4 +1,4 @@
-/* Test harness nhe, khong dung framework ngoai - thuan C */
+/* Test harness nhẹ, không dùng framework ngoài — thuần C. */
 #include "../include/CSVParser.h"
 #include "../include/DeadlockDetector.h"
 #include "../include/Models.h"
@@ -21,7 +21,7 @@ static int g_checks   = 0;
         }                                                                  \
     } while (0)
 
-/* Viet file CSV tam vao duong dan cho san */
+/* Ghi file CSV tạm tại đường dẫn name. */
 static void writeTemp(const char *name, const char *content)
 {
     FILE *fp = fopen(name, "w");
@@ -55,7 +55,7 @@ static void testParser(void)
     free(events);
     remove("tmp_parse_ok.csv");
 
-    /* Action khong hop le: CSVParser goi exit() -> khong the test trong process nay */
+    /* Action không hợp lệ: CSVParser sẽ gọi exit() nên không test trong tiến trình này. */
 }
 
 /* ------------------------------------------------------------------ */
@@ -68,7 +68,7 @@ static void testDetector(void)
     DeadlockDetector det;
     DeadlockDetector_init(&det);
 
-    /* P1 -> P2 -> P3 -> P1: chu trinh */
+    /* P1 -> P2 -> P3 -> P1: chu trình */
     DeadlockDetector_addWaitRelation(&det, "P1", "P2");
     DeadlockDetector_addWaitRelation(&det, "P2", "P3");
     DeadlockDetector_addWaitRelation(&det, "P3", "P1");
@@ -77,21 +77,21 @@ static void testDetector(void)
     CHECK(DeadlockDetector_isInDeadlock(&det, "P2"));
     CHECK(DeadlockDetector_isInDeadlock(&det, "P3"));
 
-    /* P4 cho P1 nhung khong ai cho P4 -> P4 khong trong chu trinh */
+    /* P4 chờ P1 nhưng không ai chờ P4 → P4 không nằm trong chu trình. */
     DeadlockDetector_addWaitRelation(&det, "P4", "P1");
     CHECK(DeadlockDetector_detectDeadlock(&det));
     CHECK(!DeadlockDetector_isInDeadlock(&det, "P4"));
 
-    /* Pid chua biet */
+    /* Pid chưa từng xuất hiện */
     CHECK(!DeadlockDetector_isInDeadlock(&det, "P9"));
 
-    /* Go P1 -> het chu trinh */
+    /* Gỡ P1 -> hết chu trình */
     DeadlockDetector_removeProcess(&det, "P1");
     CHECK(!DeadlockDetector_detectDeadlock(&det));
 
     DeadlockDetector_destroy(&det);
 
-    /* Chain don thuan, khong deadlock */
+    /* Chain đơn thuần, không có deadlock */
     DeadlockDetector chain;
     DeadlockDetector_init(&chain);
     DeadlockDetector_addWaitRelation(&chain, "A", "B");
@@ -102,7 +102,7 @@ static void testDetector(void)
 }
 
 /* ------------------------------------------------------------------ */
-/* Helper: tao ProcessEntry mang 1 phan tu                             */
+/* Helper: tạo ProcessEntry mang 1 phần tử                              */
 /* ------------------------------------------------------------------ */
 static ProcessEntry makeProcessEntry(const char *id, ProcessState state)
 {
@@ -141,12 +141,12 @@ static void testTimeoutKill(void)
     TimeoutManager mgr;
     TimeoutManager_init(&mgr, cfg);
 
-    /* Process P1 bi block, giu R1, dang cho R2 */
+    /* Process P1 đang bị block, giữ R1, đang chờ R2 */
     ProcessEntry pe = makeProcessEntry("P1", PROCESS_STATE_BLOCKED);
     pe.value.has_requestTime = true;
     pe.value.requestTime = 0;
     pe.value.waitingFor  = strdup("R2");
-    /* Them R1 vao heldResources */
+    /* Thêm R1 vào heldResources */
     pe.value.heldResources = malloc(sizeof(char *));
     pe.value.heldResources[0] = strdup("R1");
     pe.value.heldResourcesCount    = 1;
@@ -164,7 +164,7 @@ static void testTimeoutKill(void)
 
     DeadlockDetector det;
     DeadlockDetector_init(&det);
-    /* P1 khong trong chu trinh -> false positive */
+    /* P1 không nằm trong chu trình -> đây là false positive */
 
     size_t recCount = 0;
     TimeoutRecord *records = TimeoutManager_checkTimeouts(
@@ -183,7 +183,7 @@ static void testTimeoutKill(void)
 
     free(records);
     DeadlockDetector_destroy(&det);
-    free(pe.value.heldResources);   /* da duoc giai phong trong kill, nhung mang con do */
+    free(pe.value.heldResources);   /* heldResources đã được kill giải phóng nội dung, ta chỉ free mảng */
 }
 
 /* ------------------------------------------------------------------ */
@@ -210,7 +210,7 @@ static void testTimeoutRetryEscalation(void)
 
     ResourceEntry re = makeResourceEntry("R1", "P2");
 
-    /* Mang pending du lon cho retry push_back */
+    /* Mảng pending đủ lớn để retry push_back thoải mái */
     PendingRequest pending[16];
     pending[0].processId  = strdup("P1");
     pending[0].resourceId = strdup("R1");
@@ -226,14 +226,14 @@ static void testTimeoutRetryEscalation(void)
     size_t rc = 0;
     TimeoutRecord *recs = TimeoutManager_checkTimeouts(
         &mgr, 3, &pe, 1, &re, 1, pending, &pendingCount, &det, &rc);
-    pendingCount = 1; /* retry them lai 1 pending */
+    pendingCount = 1; /* retry thêm lại 1 pending */
     CHECK(rc == 1);
     CHECK(recs[0].retried);
     CHECK(!recs[0].killed);
     CHECK(pe.value.state == PROCESS_STATE_RUNNING);
     free(recs);
 
-    /* Simulate block lai, retry 2 */
+    /* Giả lập process bị block lại, retry lần 2 */
     pe.value.state = PROCESS_STATE_BLOCKED;
     rc = 0;
     recs = TimeoutManager_checkTimeouts(
@@ -243,7 +243,7 @@ static void testTimeoutRetryEscalation(void)
     CHECK(recs[0].retried);
     free(recs);
 
-    /* Retry 3 -> vuot maxRetries -> kill */
+    /* Retry lần 3 -> vượt maxRetries -> leo thang kill */
     pe.value.state = PROCESS_STATE_BLOCKED;
     pe.value.requestTime = pending[0].requestTime;
     rc = 0;
@@ -336,7 +336,7 @@ static void testTimeoutRollback(void)
     free(recs);
     free(pe.value.heldResources);
 
-    /* Rollback 3 -> vuot maxRollbacks -> kill */
+    /* Rollback lần 3 -> vượt maxRollbacks -> leo thang kill */
     pe.value.state = PROCESS_STATE_BLOCKED;
     pe.value.requestTime = 30;
     pe.value.heldResources = malloc(sizeof(char *) * 1);
@@ -398,7 +398,7 @@ static void testEngineThroughputBounded(void)
     CHECK(m.completedProcesses <= m.totalProcesses);
     CHECK(m.falsePositives <= m.timeoutEvents);
 
-    /* Kill tren cung kich ban deadlock */
+    /* Kill trên cùng kịch bản deadlock */
     TimeoutConfig cfgKill;
     cfgKill.timeout      = 3;
     cfgKill.strategy     = TIMEOUT_STRATEGY_KILL;

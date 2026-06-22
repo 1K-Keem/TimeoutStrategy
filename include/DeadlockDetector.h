@@ -1,4 +1,4 @@
-// Wait-For Graph + DFS phat hien chu trinh (deadlock).
+// Wait-For Graph + DFS phát hiện chu trình (deadlock).
 #ifndef DEADLOCK_DETECTOR_H
 #define DEADLOCK_DETECTOR_H
 

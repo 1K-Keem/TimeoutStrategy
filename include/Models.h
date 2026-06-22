@@ -3,6 +3,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/*
+ * Models.h — định nghĩa các kiểu dữ liệu dùng chung cho toàn bộ mô phỏng:
+ * Process, Resource, Event, PendingRequest, TimeoutRecord, SimulationMetrics
+ * cùng các trạng thái và chiến lược timeout. Vì code là C thuần nên không
+ * có constructor/method, mọi thao tác đều qua hàm tự do.
+ */
+
 typedef enum {
     PROCESS_STATE_NEW,
     PROCESS_STATE_RUNNING,
@@ -100,7 +107,8 @@ static inline double SimulationMetrics_falsePositiveRate(const SimulationMetrics
     return m->timeoutEvents == 0 ? 0.0 : (double)(m->falsePositives) / m->timeoutEvents;
 }
 
-/* Map entry types dung chung cho SimulationEngine va TimeoutManager */
+/* Các kiểu entry dùng chung giữa SimulationEngine và TimeoutManager
+ * (mô phỏng cặp key-value như std::map<string, T>). */
 typedef struct {
     char* key;
     Process value;

@@ -2,7 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-// set
+/*
+ * DeadlockDetector — phát hiện deadlock bằng Wait-For Graph + DFS.
+ *
+ * Đồ thị có hướng: cạnh waitPid -> holdPid nghĩa là waitPid đang chờ tài
+ * nguyên do holdPid nắm giữ. Có chu trình tức là có deadlock.
+ *
+ *  - detectDeadlock()  : DFS toàn cục, trả true nếu tồn tại chu trình bất kỳ.
+ *  - isInDeadlock(pid) : reachability pid -> ... -> pid, tức kiểm tra
+ *                        đúng process này có nằm trong chu trình hay không
+ *                        (phục vụ tính false positive theo định nghĩa đề).
+ */
+
+// IntSet — tập số nguyên không trùng, dùng làm danh sách kề của mỗi đỉnh.
 static char *str_dup(const char *s) {
   char *p = (char *)malloc(strlen(s) + 1);
   if (p)
@@ -48,7 +60,7 @@ static void IntSet_destroy(IntSet *s) {
   s->capacity = 0;
 }
 
-// WGraph
+// WFGraph — Wait-For Graph: ánh xạ pid (chuỗi) sang chỉ số đỉnh để DFS.
 void WFGraph_init(WFGraph *graph) {
   graph->pidList = NULL;
   graph->pidCount = 0;
@@ -231,7 +243,7 @@ void WFGraph_clear(WFGraph *graph) {
   WFGraph_init(graph);
 }
 
-// DeadlockDetector
+// DeadlockDetector — wrapper mỏng quanh WFGraph để engine sử dụng.
 void DeadlockDetector_init(DeadlockDetector *detector) {
   WFGraph_init(&detector->graph);
 }

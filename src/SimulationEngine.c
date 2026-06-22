@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Deep copy string
+// Hàm tiện ích copy chuỗi (deep copy) — dùng thay cho strdup vì strdup
+// không nằm trong chuẩn C11. Trả về NULL nếu input NULL.
 static char *my_strdup(const char *s)
 {
   if (!s)
@@ -15,9 +16,13 @@ static char *my_strdup(const char *s)
   return d;
 }
 
-// Các hàm getProcess, getRemainingCount, getEventVector, ensureRemainingCount, ensureEventVector, pushEvent, addHeldResource, removeHeldResource được định nghĩa ở đây để quản lý trạng thái của các process, resource, pending request và event vector trong SimulationEngine. Chúng giúp tìm kiếm, tạo mới và cập nhật thông tin liên quan đến các thực thể này một cách hiệu quả trong quá trình chạy mô phỏng.
+// Nhóm helper nội bộ bên dưới (getProcess, getRemainingCount, getEventVector,
+// ensureRemainingCount, ensureEventVector, pushEvent, addHeldResource,
+// removeHeldResource) đảm nhiệm việc tra cứu, tạo mới và cập nhật state
+// cho các process, resource, pending request cùng vector event mà engine
+// đang quản lý trong suốt quá trình mô phỏng.
 
-// Tìm process theo ID, trả về NULL nếu không tìm thấy
+// Tìm process theo id, trả về NULL nếu không có.
 static Process *getProcess(SimulationEngine *engine, const char *processId)
 {
   size_t i;
@@ -31,7 +36,7 @@ static Process *getProcess(SimulationEngine *engine, const char *processId)
   return NULL;
 }
 
-// Tìm số lượng event còn lại của một process
+// Tìm số event còn chưa xử lý của process.
 static int *getRemainingCount(SimulationEngine *engine, const char *processId)
 {
   size_t i;
@@ -45,14 +50,15 @@ static int *getRemainingCount(SimulationEngine *engine, const char *processId)
   return NULL;
 }
 
-// Kiểm tra process đã tồn tại hay chưa, nếu chưa thì tạo mới với số lượng event còn lại là 0
+// Đảm bảo có mục đếm số event còn lại cho process. Nếu chưa có thì tạo
+// mới, khởi tạo bằng 0 và trả về con trỏ tới giá trị đó.
 static int *ensureRemainingCount(SimulationEngine *engine, const char *processId)
 {
   int *ptr = getRemainingCount(engine, processId);
   if (ptr)
     return ptr;
 
-  // Nếu chưa tồn tại, tạo mới entry với value mặc định là 0
+  // Chưa có entry cho process này, cấp phát thêm slot rồi khởi tạo bằng 0.
   if (engine->remainingEventCountCount_ >= engine->remainingEventCountCapacity_)
   {
     engine->remainingEventCountCapacity_ = engine->remainingEventCountCapacity_ == 0 ? 10 : engine->remainingEventCountCapacity_ * 2;
@@ -64,7 +70,7 @@ static int *ensureRemainingCount(SimulationEngine *engine, const char *processId
   return &engine->remainingEventCount_[engine->remainingEventCountCount_++].value;
 }
 
-// Tìm vector event của một process, trả về NULL nếu không tìm thấy
+// Tìm vector event gốc của một process, trả về NULL nếu chưa từng đăng ký.
 static EventVector *getEventVector(SimulationEngine *engine, const char *processId)
 {
   size_t i;
@@ -78,7 +84,8 @@ static EventVector *getEventVector(SimulationEngine *engine, const char *process
   return NULL;
 }
 
-// Kiểm tra vector event của một process đã tồn tại hay chưa, nếu chưa thì tạo mới và trả về con trỏ đến nó
+// Đảm bảo có vector event cho process. Nếu chưa có thì cấp phát mới và
+// trả con trỏ tới vector vừa tạo. Dùng khi rollback cần replay lại event.
 static EventVector *ensureEventVector(SimulationEngine *engine, const char *processId)
 {
   EventVector *ptr = getEventVector(engine, processId);
@@ -98,7 +105,7 @@ static EventVector *ensureEventVector(SimulationEngine *engine, const char *proc
   return &engine->processEvents_[engine->processEventsCount_++].value;
 }
 
-// Thêm một event vào vector event của một process (push_back)
+// Thêm một event vào vector event của process (giống vector::push_back).
 static void pushEvent(EventVector *vec, const Event *event)
 {
   if (vec->count >= vec->capacity)
@@ -115,10 +122,10 @@ static void pushEvent(EventVector *vec, const Event *event)
   vec->count++;
 }
 
-// 2 hàm addHeldResource và removeHeldResource mô phỏng std::set
-// Quản lý danh sách tài nguyên mà một process đang giữ.
+// addHeldResource và removeHeldResource đóng vai trò như std::set<string>
+// để quản lý danh sách tài nguyên mà process đang giữ (không trùng lặp).
 
-// Thêm một tài nguyên vào danh sách heldResources của process nếu nó chưa tồn tại
+// Thêm tài nguyên vào heldResources của process nếu chưa có.
 static void addHeldResource(Process *process, const char *resourceId)
 {
   size_t i;
@@ -137,7 +144,8 @@ static void addHeldResource(Process *process, const char *resourceId)
   process->heldResources[process->heldResourcesCount++] = my_strdup(resourceId);
 }
 
-// loại bỏ một tài nguyên khỏi danh sách này khi process giải phóng nó
+// Loại bỏ một tài nguyên khỏi danh sách heldResources khi process nhả nó.
+// Dùng kỹ thuật dồn mảng in-place để tránh cấp phát lại.
 static void removeHeldResource(Process *process, const char *resourceId)
 {
   size_t i, keep = 0;
@@ -160,7 +168,8 @@ static void removeHeldResource(Process *process, const char *resourceId)
   process->heldResourcesCount = keep;
 }
 
-// Khởi tạo SimulationEngine, cấp phát bộ nhớ và khởi tạo các trường dữ liệu = 0
+// Khởi tạo SimulationEngine: cấp phát, zero-init các trường và dựng
+// TimeoutManager + DeadlockDetector.
 SimulationEngine *SimulationEngine_create(const TimeoutConfig *config, bool verbose)
 {
   SimulationEngine *engine = malloc(sizeof(SimulationEngine));
@@ -181,7 +190,9 @@ void SimulationEngine_log(const SimulationEngine *engine, int currentTime, const
   }
 }
 
-// Giải phóng bộ nhớ của SimulationEngine và các trường dữ liệu liên quan
+// Reset toàn bộ state của engine: free mọi chuỗi đã cấp phát, đưa các
+// count về 0 và xóa Wait-For Graph. Gọi trước mỗi lần run() để chạy lại
+// trên cùng một engine mà không bị rò rỉ bộ nhớ.
 void SimulationEngine_resetState(SimulationEngine *engine)
 {
   size_t i;
@@ -238,7 +249,8 @@ void SimulationEngine_resetState(SimulationEngine *engine)
   DeadlockDetector_clear(&engine->deadlockDetector_);
 }
 
-// Kiểm tra process đã tồn tại hay chưa, nếu chưa thì tạo mới và thêm vào mảng processes_
+// Đảm bảo process tồn tại trong bảng processes_. Nếu chưa có thì tạo mới
+// với state = New và tăng totalProcesses (mẫu số của throughput).
 void SimulationEngine_ensureProcessExists(SimulationEngine *engine, const char *processId)
 {
   if (getProcess(engine, processId) != NULL)
@@ -259,7 +271,8 @@ void SimulationEngine_ensureProcessExists(SimulationEngine *engine, const char *
   engine->metrics_.totalProcesses++;
 }
 
-// Kiểm tra resource đã tồn tại hay chưa, nếu chưa thì tạo mới và thêm vào mảng resources_
+// Đảm bảo resource tồn tại trong bảng resources_. Nếu chưa có thì tạo
+// mới ở trạng thái free (owner = NULL). Trả về con trỏ tới resource.
 Resource *SimulationEngine_ensureResourceExists(SimulationEngine *engine, const char *resourceId)
 {
   size_t i;
@@ -424,7 +437,7 @@ void SimulationEngine_releaseExpiredResources(SimulationEngine *engine, int curr
     }
   }
 
-  // Release thật sự sau khi đã duyệt hết để tránh ảnh hưởng đến vòng lặp
+  // Thực hiện release sau khi đã duyệt xong để không ảnh hưởng tới vòng lặp ở trên.
   for (i = 0; i < count; i++)
   {
     SimulationEngine_releaseResource(engine, toRelease[i]);
@@ -575,7 +588,7 @@ void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
 
 void SimulationEngine_replayProcess(SimulationEngine *engine, const char *processId, int currentTime)
 {
-  // lấy vector event của process 
+  // Lấy vector event gốc của process (đã được registerEventSources lưu từ trước).
   EventVector *it = getEventVector(engine, processId);
   if (!it)
   {
@@ -585,7 +598,7 @@ void SimulationEngine_replayProcess(SimulationEngine *engine, const char *proces
   size_t keep = 0;
   size_t i;
   
-  // Xóa tất cả pending request của process này (reset lại từ đầu)
+  // Xóa mọi pending request của process này (bắt đầu lại từ đầu).
   for (i = 0; i < engine->pendingRequestsCount_; i++)
   {
     if (strcmp(engine->pendingRequests_[i].processId, processId) == 0)
@@ -603,7 +616,7 @@ void SimulationEngine_replayProcess(SimulationEngine *engine, const char *proces
   }
   engine->pendingRequestsCount_ = keep;
 
-  // Reset state
+  // Reset state: đưa process về New, đặt lại bộ đếm event.
   int *remaining = ensureRemainingCount(engine, processId);
   *remaining = 0;
 
@@ -617,7 +630,8 @@ void SimulationEngine_replayProcess(SimulationEngine *engine, const char *proces
     process->waitingFor = NULL;
   }
 
-  // Đẩy lại tất cả event của process vào pending request 
+  // Re-inject toàn bộ event request của process vào pending, đặt requestTime
+  // = currentTime để engine cấp phát lại từ đầu.
   for (i = 0; i < it->count; i++)
   {
     const Event *event = &it->events[i];
@@ -773,7 +787,7 @@ void SimulationEngine_checkAndCompleteProcesses(SimulationEngine *engine, int cu
 // Được gọi khi một process request một tài nguyên nhưng tài nguyên đó đang bị giữ bởi một process khác
 void SimulationEngine_blockProcess(SimulationEngine *engine, Process *process, const Event *event, int currentTime)
 {
-  // Update trạng thái, ghi nhận thời điểm chờ
+  // Cập nhật trạng thái: chuyển sang Blocked và ghi nhận thời điểm bắt đầu chờ.
   process->state = PROCESS_STATE_BLOCKED;
   process->has_requestTime = true;
   process->requestTime = currentTime;

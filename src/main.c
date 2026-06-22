@@ -11,12 +11,12 @@ static void printUsage(const char *prog)
 {
     fprintf(stderr,
         "Usage: %s <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [max_retries|max_rollbacks]\n"
-        "  timeout      nguong TIMEOUT (so nguyen >= 1, mac dinh 5)\n"
-        "  strategy     kill | retry | rollback (mac dinh kill)\n"
-        "  retry_delay  so time unit cho truoc khi xin lai (mac dinh 1)\n"
-        "  max_*        so lan retry/rollback toi da truoc khi kill (mac dinh 3)\n"
-        "  -v|--verbose in log tung su kien theo time unit\n"
-        "  -c|--compare chay ca 3 chien luoc (kill/retry/rollback) va in bang so sanh\n",
+        "  timeout      TIMEOUT threshold (integer >= 1, default 5)\n"
+        "  strategy     kill | retry | rollback (default kill)\n"
+        "  retry_delay  number of time units to wait before retrying (default 1)\n"
+        "  max_*        max retries/rollbacks before escalating to kill (default 3)\n"
+        "  -v|--verbose log every event per time unit\n"
+        "  -c|--compare run all 3 strategies (kill/retry/rollback) and print comparison table\n",
         prog);
 }
 
@@ -25,7 +25,7 @@ static int parsePositiveInt(const char *text, const char *fieldName)
     char *end;
     long value = strtol(text, &end, 10);
     if (*end != '\0' || end == text || value < 1) {
-        fprintf(stderr, "Gia tri khong hop le cho %s: %s\n", fieldName, text);
+        fprintf(stderr, "Invalid value for %s: %s\n", fieldName, text);
         exit(1);
     }
     return (int)value;
@@ -44,7 +44,7 @@ static const char *strategyName(TimeoutStrategy strategy)
 static void printMetrics(const TimeoutConfig *config, const char *datasetPath,
                          const SimulationMetrics *metrics)
 {
-    printf("=== Cau hinh ===\n");
+    printf("=== Config ===\n");
     printf("dataset       : %s\n", datasetPath);
     printf("timeout       : %d\n", config->timeout);
     printf("strategy      : %s\n", strategyName(config->strategy));
@@ -72,7 +72,7 @@ static void printCompareTable(const TimeoutConfig *base, const char *datasetPath
         TIMEOUT_STRATEGY_KILL, TIMEOUT_STRATEGY_RETRY, TIMEOUT_STRATEGY_ROLLBACK
     };
 
-    printf("=== So sanh chien luoc ===\n");
+    printf("=== Strategy comparison ===\n");
     printf("dataset : %s\n", datasetPath);
     printf("timeout : %d\n\n", base->timeout);
 
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     int verbose = 0;
     int compare = 0;
 
-    /* Mang luu tham so vi tri (khong phai flag) */
+    /* Mảng lưu tham số vị trí (không phải cờ -v/-c). */
     const char *pos[8];
     int posCount = 0;
 
@@ -144,7 +144,7 @@ int main(int argc, char **argv)
         } else if (strcmp(pos[2], "rollback") == 0) {
             config.strategy = TIMEOUT_STRATEGY_ROLLBACK;
         } else {
-            fprintf(stderr, "Chien luoc phai la 'kill', 'retry' hoac 'rollback': %s\n", pos[2]);
+            fprintf(stderr, "Strategy must be 'kill', 'retry' or 'rollback': %s\n", pos[2]);
             printUsage(argv[0]);
             return 1;
         }
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
     size_t eventsCount = 0;
     Event *events = CSVParser_parse(datasetPath, &eventsCount);
     if (!events) {
-        fprintf(stderr, "Loi: khong doc duoc file %s\n", datasetPath);
+        fprintf(stderr, "Error: cannot read file %s\n", datasetPath);
         return 1;
     }
 

@@ -6,6 +6,22 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/*
+ * SimulationEngine — đồng hồ logic + event loop.
+ *
+ * Engine quản lý toàn bộ trạng thái mô phỏng: bảng Process, bảng Resource,
+ * hàng đợi pending request, bộ đếm event còn lại của từng process, và vector
+ * event gốc per-process để hỗ trợ rollback (replayProcess).
+ *
+ * Mỗi vòng lặp ứng với một time unit và thực hiện đúng thứ tự:
+ *   1. releaseExpiredResources — nhả tài nguyên đã hết hạn giữ.
+ *   2. grantPendingRequests    — cấp phát cho pending có thể chạy.
+ *   3. processEventsAt         — đọc các event tại time hiện tại.
+ *   4. applyTimeouts           — gọi TimeoutManager xử lý timeout.
+ *   5. grantPendingRequests    — cấp lại sau khi kill/retry giải phóng tài nguyên.
+ *   6. checkAndCompleteProcesses — đánh dấu process đã chạy xong.
+ */
+
 typedef struct {
     Event* events;
     size_t count;

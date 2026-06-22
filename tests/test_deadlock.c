@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "../include/DeadlockDetector.h"
 
+/* Demo chơi tay Wait-For Graph: thêm/xóa cạnh rồi in trạng thái deadlock. */
+
 static void printDeadlock(
     DeadlockDetector *detector,
     const char *title)
@@ -9,11 +11,11 @@ static void printDeadlock(
 
     if (DeadlockDetector_detectDeadlock(detector))
     {
-        printf("Deadlock detected!\n");
+        printf("Có deadlock!\n");
     }
     else
     {
-        printf("No deadlock.\n");
+        printf("Không có deadlock.\n");
     }
 }
 
@@ -23,7 +25,7 @@ int main(void)
 
     DeadlockDetector_init(&detector);
 
-    printf("Create graph...\n");
+    printf("Tạo đồ thị...\n");
 
     /*
         P1 -> P2
@@ -33,7 +35,7 @@ int main(void)
         "P1",
         "P2");
 
-    printDeadlock(&detector, "After P1 waits P2");
+    printDeadlock(&detector, "Sau khi P1 chờ P2");
 
     /*
         P1 -> P2 -> P3
@@ -43,47 +45,44 @@ int main(void)
         "P2",
         "P3");
 
-    printDeadlock(&detector, "After P2 waits P3");
+    printDeadlock(&detector, "Sau khi P2 chờ P3");
 
     /*
         P1 -> P2 -> P3 -> P1
-
-        cycle
+        Tạo thành chu trình -> deadlock.
     */
     DeadlockDetector_addWaitRelation(
         &detector,
         "P3",
         "P1");
 
-    printDeadlock(&detector, "After P3 waits P1");
+    printDeadlock(&detector, "Sau khi P3 chờ P1");
 
     printf("\n");
 
-    printf("P1 in deadlock? %s\n",
+    printf("P1 có trong deadlock? %s\n",
            DeadlockDetector_isInDeadlock(
                &detector,
                "P1")
-               ? "YES"
-               : "NO");
+               ? "CÓ"
+               : "KHÔNG");
 
-    printf("P2 in deadlock? %s\n",
+    printf("P2 có trong deadlock? %s\n",
            DeadlockDetector_isInDeadlock(
                &detector,
                "P2")
-               ? "YES"
-               : "NO");
+               ? "CÓ"
+               : "KHÔNG");
 
-    printf("P3 in deadlock? %s\n",
+    printf("P3 có trong deadlock? %s\n",
            DeadlockDetector_isInDeadlock(
                &detector,
                "P3")
-               ? "YES"
-               : "NO");
+               ? "CÓ"
+               : "KHÔNG");
 
     /*
-        Remove edge
-
-        P3 -> P1
+        Gỡ cạnh P3 -> P1 để phá chu trình.
     */
     DeadlockDetector_removeWaitRelation(
         &detector,
@@ -92,7 +91,7 @@ int main(void)
 
     printDeadlock(
         &detector,
-        "After removing P3 -> P1");
+        "Sau khi gỡ P3 -> P1");
 
     DeadlockDetector_destroy(&detector);
 

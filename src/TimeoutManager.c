@@ -5,8 +5,9 @@
 #include <stdio.h>
 
 /* ------------------------------------------------------------------ */
-/* Helper noi bo                                                        */
+/* Helper                                                             */
 /* ------------------------------------------------------------------ */
+
 
 static Process *findProcess(ProcessEntry *processes, size_t count, const char *processId)
 {
@@ -39,7 +40,7 @@ static void pushRecord(TimeoutRecord **arr, size_t *count, size_t *cap, TimeoutR
     (*count)++;
 }
 
-/* Xoa tat ca pending cua mot process khoi mang in-place, free string */
+/* Xóa tất cả pending request của một process khỏi mảng (dồn in-place, free chuỗi). */
 static void removePendingByProcess(
     PendingRequest *pending, size_t *count, const char *processId)
 {
@@ -58,7 +59,7 @@ static void removePendingByProcess(
     *count = keep;
 }
 
-/* Xoa 1 pending request tai vi tri index, free string, dich cac phan tu sau len */
+/* Xóa 1 pending request tại vị trí index, free chuỗi rồi dồn các phần tử sau lên. */
 static void removePendingAt(PendingRequest *pending, size_t *count, size_t index)
 {
     free(pending[index].processId);
@@ -69,7 +70,7 @@ static void removePendingAt(PendingRequest *pending, size_t *count, size_t index
     (*count)--;
 }
 
-/* Giai phong tat ca held resources, reset owner trong resource map */
+/* Giải phóng toàn bộ tài nguyên mà process đang giữ và reset owner trong resource map. */
 static void releaseHeldResources(
     Process *process, ResourceEntry *resources, size_t resourcesCount)
 {
@@ -86,7 +87,7 @@ static void releaseHeldResources(
     process->heldResourcesCount = 0;
 }
 
-/* Tao TimeoutRecord voi processId va resourceId duoc strdup (caller se free) */
+/* Tạo TimeoutRecord, processId và resourceId được strdup (caller có nhiệm vụ free). */
 static TimeoutRecord makeRecord(
     int currentTime, const char *processId, const char *resourceId,
     int waitingTime, TimeoutStrategy strategy, bool deadlocked,
@@ -107,14 +108,14 @@ static TimeoutRecord makeRecord(
 }
 
 /* ------------------------------------------------------------------ */
-/* Cac ham xu ly chinh                                                  */
+/* Các hàm xử lý chính                                                  */
 /* ------------------------------------------------------------------ */
 
 static TimeoutRecord doKillProcess(
     TimeoutManager *mgr,
     int currentTime,
     Process *process,
-    const char *resourceId,   /* luu truoc khi remove pending */
+    const char *resourceId,   /* lưu trước khi dọn pending */
     int waitingTime,
     bool deadlocked,
     ResourceEntry *resources,
@@ -139,7 +140,7 @@ static TimeoutRecord doRetryRequest(
     TimeoutManager *mgr,
     int currentTime,
     Process *process,
-    PendingRequest request,   /* copy by value */
+    PendingRequest request,   /* truyền bằng giá trị (copy) */
     int waitingTime,
     bool deadlocked,
     ResourceEntry *resources,
@@ -148,12 +149,12 @@ static TimeoutRecord doRetryRequest(
     size_t *pendingCount,
     size_t requestIndex)
 {
-    /* Luu cac string can dung sau khi remove */
+    /* Lưu trước các chuỗi cần dùng, vì removePendingAt sẽ free chuỗi gốc. */
     char *savedProcessId  = strdup(request.processId);
     char *savedResourceId = strdup(request.resourceId);
     int   savedRetryCount = request.retryCount + 1;
 
-    /* Xoa pending hien tai, se free string goc */
+    /* Gỡ pending hiện tại (free chuỗi gốc bên trong). */
     removePendingAt(pendingRequests, pendingCount, requestIndex);
 
     process->has_requestTime = false;
@@ -161,7 +162,7 @@ static TimeoutRecord doRetryRequest(
     process->waitingFor = NULL;
 
     if (savedRetryCount > mgr->config_.maxRetries) {
-        /* Leo thang sang kill */
+        /* Vượt giới hạn retry -> leo thang kill để chống livelock. */
         TimeoutRecord rec = doKillProcess(
             mgr, currentTime, process, savedResourceId, waitingTime,
             deadlocked, resources, resourcesCount, pendingRequests, pendingCount);
@@ -173,7 +174,8 @@ static TimeoutRecord doRetryRequest(
     process->state      = PROCESS_STATE_RUNNING;
     process->retryAfter = currentTime + mgr->config_.retryDelay;
 
-    /* Them lai pending voi thong tin moi - cac string la heap (savedProcessId/Id) */
+    /* Đẩy lại pending với thông tin mới: requestTime = retryAfter,
+       hai chuỗi processId/resourceId là heap (do caller free sau). */
     PendingRequest newReq;
     newReq.processId  = savedProcessId;
     newReq.resourceId = savedResourceId;
@@ -193,7 +195,7 @@ static TimeoutRecord doRollbackProcess(
     TimeoutManager *mgr,
     int currentTime,
     Process *process,
-    const char *resourceId,   /* luu truoc khi remove pending */
+    const char *resourceId,   /* lưu trước khi dọn pending */
     int waitingTime,
     bool deadlocked,
     ResourceEntry *resources,
@@ -203,20 +205,20 @@ static TimeoutRecord doRollbackProcess(
 {
     process->rollbackCount += 1;
 
-    /* Vuot nguong -> leo thang sang kill de tranh livelock */
+    /* Vượt ngưỡng maxRollbacks -> leo thang kill để tránh livelock. */
     if (process->rollbackCount > mgr->config_.maxRollbacks) {
         return doKillProcess(
             mgr, currentTime, process, resourceId, waitingTime,
             deadlocked, resources, resourcesCount, pendingRequests, pendingCount);
     }
 
-    /* Thu hoi tat ca tai nguyen */
+    /* Thu hồi toàn bộ tài nguyên process đang giữ. */
     releaseHeldResources(process, resources, resourcesCount);
 
-    /* Xoa moi pending cua process */
+    /* Xóa mọi pending của process này. */
     removePendingByProcess(pendingRequests, pendingCount, process->id);
 
-    /* Tra process ve trang thai ban dau */
+    /* Đưa process về trạng thái ban đầu. */
     process->state = PROCESS_STATE_NEW;
     process->has_requestTime = false;
     free(process->waitingFor);
@@ -228,7 +230,7 @@ static TimeoutRecord doRollbackProcess(
 }
 
 /* ------------------------------------------------------------------ */
-/* API cong khai                                                        */
+/* API công khai                                                        */
 /* ------------------------------------------------------------------ */
 
 void TimeoutManager_init(TimeoutManager *mgr, TimeoutConfig config)
@@ -279,7 +281,8 @@ TimeoutRecord *TimeoutManager_checkTimeouts(
             continue;
         }
 
-        /* Luu resourceId truoc khi cac ham xu ly co the free string trong pending */
+        /* Lưu resourceId trước, vì các hàm xử lý bên dưới có thể free
+           chuỗi gốc nằm trong pending. */
         char *savedResourceId = strdup(req->resourceId);
 
         bool deadlocked = DeadlockDetector_isInDeadlock(detector, req->processId);

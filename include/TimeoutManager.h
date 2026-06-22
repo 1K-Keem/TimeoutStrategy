@@ -23,10 +23,11 @@ void TimeoutManager_init(TimeoutManager *mgr, TimeoutConfig config);
 TimeoutConfig TimeoutManager_getConfig(const TimeoutManager *mgr);
 
 /*
- * Duyet pendingRequests, kiem tra timeout, xu ly theo strategy.
- * Tra ve mang TimeoutRecord cap phat dong, ghi so luong vao *outCount.
- * pendingRequestsCount co the bi giam (phan tu bi xoa trong ham).
- * Caller phai goi free() sau khi dung xong.
+ * Duyệt mảng pendingRequests, kiểm tra timeout của từng request và xử lý
+ * theo strategy đang cấu hình.
+ * Trả về mảng TimeoutRecord cấp phát động, ghi số lượng vào *outCount.
+ * pendingRequestsCount có thể giảm sau khi gọi (vì phần tử bị xóa).
+ * Caller có trách nhiệm gọi free() cho mảng kết quả khi không dùng nữa.
  */
 TimeoutRecord *TimeoutManager_checkTimeouts(
     TimeoutManager *mgr,
