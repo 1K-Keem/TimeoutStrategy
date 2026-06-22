@@ -498,6 +498,8 @@ void SimulationEngine_grantPendingRequests(SimulationEngine *engine, int current
 void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
 {
   size_t recordsCount = 0;
+
+  // Gọi hàm checkTimeouts từ TimeoutManager để kiểm tra các process bị timeout
   TimeoutRecord *records = TimeoutManager_checkTimeouts(
       &engine->timeoutManager_, currentTime, engine->processes_, engine->processesCount_,
       engine->resources_, engine->resourcesCount_, engine->pendingRequests_, &engine->pendingRequestsCount_,
@@ -509,15 +511,21 @@ void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
     TimeoutRecord *record = &records[i];
     engine->metrics_.timeoutEvents++;
 
+    // Nếu timeout nhưng không phải do deadlock, tăng false positive
     if (!record->deadlockedAtTimeout)
     {
       engine->metrics_.falsePositives++;
     }
 
     if (record->retried)
+    {
       engine->metrics_.retryEvents++;
+    }
+
     if (record->rolledBack)
+    {
       engine->metrics_.rollbackEvents++;
+    }
 
     const char *fp = record->deadlockedAtTimeout ? "deadlock" : "false positive";
     char base[256];
@@ -551,6 +559,8 @@ void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
 
     bool cycleAfter = DeadlockDetector_detectDeadlock(&engine->deadlockDetector_);
 
+    // Chặn lỗi đếm 2 lần khi giải quyết nhiều process trong cùng một chu trình Deadlock.
+    // Vì deadlock có thể đã được giải quyết bằng việc kill/rollback 1 process khác trước đó.
     if (record->deadlockedAtTimeout && cycleBefore && !cycleAfter)
     {
       engine->metrics_.deadlockResolved++;
@@ -565,12 +575,17 @@ void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
 
 void SimulationEngine_replayProcess(SimulationEngine *engine, const char *processId, int currentTime)
 {
+  // lấy vector event của process 
   EventVector *it = getEventVector(engine, processId);
   if (!it)
+  {
     return;
+  }
 
   size_t keep = 0;
   size_t i;
+  
+  // Xóa tất cả pending request của process này (reset lại từ đầu)
   for (i = 0; i < engine->pendingRequestsCount_; i++)
   {
     if (strcmp(engine->pendingRequests_[i].processId, processId) == 0)
@@ -580,25 +595,29 @@ void SimulationEngine_replayProcess(SimulationEngine *engine, const char *proces
     }
     else
     {
-      if (keep != i)
+      if (keep != i) {
         engine->pendingRequests_[keep] = engine->pendingRequests_[i];
+      }
       keep++;
     }
   }
   engine->pendingRequestsCount_ = keep;
 
+  // Reset state
   int *remaining = ensureRemainingCount(engine, processId);
   *remaining = 0;
 
   Process *process = getProcess(engine, processId);
   process->state = PROCESS_STATE_NEW;
   process->has_requestTime = false;
+
   if (process->waitingFor)
   {
     free(process->waitingFor);
     process->waitingFor = NULL;
   }
 
+  // Đẩy lại tất cả event của process vào pending request 
   for (i = 0; i < it->count; i++)
   {
     const Event *event = &it->events[i];
@@ -804,16 +823,21 @@ bool SimulationEngine_hasFutureRelease(const SimulationEngine *engine, int curre
 // Giải phóng bộ nhớ của SimulationEngine và các trường dữ liệu liên quan
 void SimulationEngine_destroy(SimulationEngine *engine)
 {
-    if (!engine) return;
+  if (!engine)
+    return;
 
-    SimulationEngine_resetState(engine);
+  SimulationEngine_resetState(engine);
 
-    if (engine->processes_) free(engine->processes_);
-    if (engine->resources_) free(engine->resources_);
-    if (engine->pendingRequests_) free(engine->pendingRequests_);
-    if (engine->remainingEventCount_) free(engine->remainingEventCount_);
-    if (engine->processEvents_) free(engine->processEvents_);
+  if (engine->processes_)
+    free(engine->processes_);
+  if (engine->resources_)
+    free(engine->resources_);
+  if (engine->pendingRequests_)
+    free(engine->pendingRequests_);
+  if (engine->remainingEventCount_)
+    free(engine->remainingEventCount_);
+  if (engine->processEvents_)
+    free(engine->processEvents_);
 
-    free(engine);
+  free(engine);
 }
-
