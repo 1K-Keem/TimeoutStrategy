@@ -1,6 +1,6 @@
 # TimeoutStrategy
 
-Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằng **C11**. Hệ thống xử lý deadlock theo thời gian logic (mỗi event = 1 time unit) với 3 chiến lược timeout: `kill`, `retry`, `rollback`, và đối chiếu với deadlock detection (Wait-For Graph) làm ground truth để đo false positive.
+Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằng **C17**. Hệ thống xử lý deadlock theo thời gian logic (mỗi event = 1 time unit) với 3 chiến lược timeout: `kill`, `retry`, `rollback`, và đối chiếu với deadlock detection (Wait-For Graph) làm ground truth để đo false positive.
 
 Định nghĩa cốt lõi: `waiting_time = current_time - request_time`. Khi `waiting_time >= TIMEOUT` thì kích hoạt xử lý.
 
@@ -20,44 +20,52 @@ Mô phỏng đề tài **Chiến lược Timeout vs Phát hiện Deadlock** bằ
 
 ## Build
 
-Yêu cầu: trình biên dịch C11 (`gcc` >= 7 hoặc `clang`), tùy chọn `cmake`/`make`. Code thuần chuẩn C11, không phụ thuộc API riêng OS, chạy trên Linux, macOS và Windows.
+Yêu cầu: môi trường Linux/WSL với `make`, trình biên dịch C17 (`gcc` >= 8 hoặc `clang`) và `bash`.
+Nếu chạy benchmark để vẽ biểu đồ, cài Python dependencies bằng một lệnh:
+
+```bash
+make deps
+```
+
+Project build theo **C17 + POSIX**. Makefile dùng `-D_POSIX_C_SOURCE=200809L` để khai báo các hàm POSIX như `strdup()` khi compile với `-std=c17`.
 
 ### Build và chạy ngay
 
 ```bash
-chmod +x run.sh
-./run.sh benchmark                                  # chạy benchmark
-./run.sh data/three_process_deadlock.csv 3 kill     # chạy mô phỏng với tùy chọn
+make
+make run RUN_ARGS="data/three_process_deadlock.csv 3 kill"
+make benchmark
 ```
 
-### Linux / macOS
+Trên Windows, chạy các lệnh trên trong WSL:
 
 ```bash
-make            # build ./timeout_strategy
-make test       # build + chạy test
-make clean
+wsl
+cd /mnt/c/Users/iyixn/Desktop/TimeoutStrategy
+make
 ```
+
+### Các target Makefile
+
+```bash
+make                         # build ./timeout_strategy
+make run RUN_ARGS="..."      # build + chạy mô phỏng
+make deps                    # tạo .venv và cài Python packages
+make benchmark               # build + chạy benchmark
+make test                    # build + chạy test
+make clean                   # xóa binary build ra
+make rebuild                 # clean rồi build lại
+```
+
+`make` không build sạch lại từ đầu nếu source không đổi. Muốn build sạch dùng `make rebuild` hoặc `make clean && make`.
 
 Hoặc gcc trực tiếp:
 
 ```bash
-gcc -std=c11 -Wall -Wextra -Iinclude src/*.c -o timeout_strategy
+gcc -std=c17 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -Iinclude src/*.c -o timeout_strategy
 ```
 
-### Windows (PowerShell / MinGW-MSYS2)
-
-```powershell
-make            # build timeout_strategy.exe
-make test
-```
-
-Hoặc gcc trực tiếp:
-
-```powershell
-gcc -std=c11 -Wall -Wextra -Iinclude src/main.c src/CSVParser.c src/DeadlockDetector.c src/SimulationEngine.c src/TimeoutManager.c -o timeout_strategy.exe
-```
-
-### CMake (mọi nền tảng)
+### CMake
 
 ```bash
 cmake -S . -B build
@@ -69,23 +77,27 @@ Build sạch với `-Wall -Wextra`, không warning.
 
 ## Chạy chương trình
 
-`run.sh` là entrypoint duy nhất cho cả chạy chương trình và benchmark.
+Có thể chạy qua Makefile hoặc gọi `run.sh` trực tiếp. `run.sh` sẽ tự gọi `make -B` trước khi chạy.
 
 ### Chạy mô phỏng bình thường
 
-Linux / macOS:
+Qua Makefile:
 
 ```bash
+make run RUN_ARGS="data/three_process_deadlock.csv 3 kill"
+make run RUN_ARGS="data/three_process_deadlock.csv 3 retry 1 3"
+make run RUN_ARGS="data/three_process_deadlock.csv 3 rollback 1 3"
+make run RUN_ARGS="data/three_process_deadlock.csv 3 --compare"
+```
+
+Hoặc qua `run.sh`:
+
+```bash
+chmod +x run.sh
 ./run.sh data/three_process_deadlock.csv 3 kill
 ./run.sh data/three_process_deadlock.csv 3 retry 1 3
 ./run.sh data/three_process_deadlock.csv 3 rollback 1 3
 ./run.sh data/three_process_deadlock.csv 3 --compare
-```
-
-Windows:
-
-```powershell
-bash run.sh data/three_process_deadlock.csv 3 kill
 ```
 
 Cú pháp:
@@ -103,7 +115,7 @@ timeout_strategy <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [ma
 
 ### Log từng sự kiện (`-v`)
 
-```powershell
+```bash
 ./run.sh data/three_process_deadlock.csv 3 kill -v
 ```
 
@@ -117,7 +129,7 @@ Time 7: P5 -> Completed
 
 ### So sánh 3 chiến lược (`-c`)
 
-```powershell
+```bash
 ./run.sh data/three_process_deadlock.csv 3 --compare
 ```
 
@@ -131,21 +143,15 @@ rollback           5       0       0         1         1       0       1.000    
 
 ## Benchmark
 
-Benchmark được chạy trực tiếp qua `run.sh` ở chế độ benchmark. Script này tự export kết quả ra CSV rồi vẽ biểu đồ.
+Benchmark có thể chạy qua Makefile hoặc `run.sh`. Script tự export kết quả ra CSV rồi vẽ biểu đồ.
 
 ### Chạy benchmark
 
-Linux / macOS:
-
 ```bash
+make deps
+make benchmark
 chmod +x run.sh
 ./run.sh benchmark
-```
-
-Windows (PowerShell):
-
-```powershell
-bash run.sh benchmark
 ```
 
 Kết quả được lưu vào `benchmark/benchmark_results.csv` với các cột:
@@ -163,7 +169,7 @@ Biểu đồ được tạo bởi `benchmark/plot_benchmark.py` và lưu trong t
 ## Test
 
 ```bash
-make test       # Linux / macOS / Windows (MinGW)
+make test
 ```
 
 Hoặc qua CMake:
@@ -175,7 +181,7 @@ ctest --test-dir build --output-on-failure
 Hoặc build trực tiếp:
 
 ```bash
-gcc -std=c11 -Iinclude tests/test_timeout.c src/CSVParser.c src/DeadlockDetector.c src/SimulationEngine.c src/TimeoutManager.c -o run_tests
+gcc -std=c17 -D_POSIX_C_SOURCE=200809L -Iinclude tests/test_timeout.c src/CSVParser.c src/DeadlockDetector.c src/SimulationEngine.c src/TimeoutManager.c -o run_tests
 ./run_tests
 ```
 
@@ -190,8 +196,3 @@ gcc -std=c11 -Iinclude tests/test_timeout.c src/CSVParser.c src/DeadlockDetector
 - Trước khi xử lý, gọi `DeadlockDetector_isInDeadlock(pid)` để đánh dấu timeout là true positive hay false positive.
 
 Metrics: `killed_processes`, `retry_events`, `rollback_events`, `deadlock_resolved`, `throughput`, `false_positives`, `false_positive_rate`.
-
-## Tài liệu
-
-- `docs_TimeoutStrategy.md` — tài liệu kỹ thuật chi tiết.
-- `review.md` — báo cáo (kiến trúc, kết quả thí nghiệm, phân tích).

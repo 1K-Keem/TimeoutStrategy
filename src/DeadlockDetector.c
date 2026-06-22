@@ -2,18 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
- * DeadlockDetector — phát hiện deadlock bằng Wait-For Graph + DFS.
- *
- * Đồ thị có hướng: cạnh waitPid -> holdPid nghĩa là waitPid đang chờ tài
- * nguyên do holdPid nắm giữ. Có chu trình tức là có deadlock.
- *
- *  - detectDeadlock()  : DFS toàn cục, trả true nếu tồn tại chu trình bất kỳ.
- *  - isInDeadlock(pid) : reachability pid -> ... -> pid, tức kiểm tra
- *                        đúng process này có nằm trong chu trình hay không
- *                        (phục vụ tính false positive theo định nghĩa đề).
- */
-
 // IntSet — tập số nguyên không trùng, dùng làm danh sách kề của mỗi đỉnh.
 static char *str_dup(const char *s) {
   char *p = (char *)malloc(strlen(s) + 1);

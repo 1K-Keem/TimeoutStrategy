@@ -5,16 +5,6 @@
 #include <string.h>
 #include <ctype.h>
 
-/*
- * CSVParser — đọc và validate dataset CSV.
- *
- * Định dạng mỗi dòng (sau header): time, process_id, action, resource_id, duration
- *   - Bỏ qua header và các dòng trống.
- *   - Mỗi dòng phải có đúng 5 cột, nếu không sẽ exit() kèm số dòng.
- *   - action phải là "request" hoặc "release"; duration >= 0.
- * Sau khi đọc xong, danh sách event được sắp xếp tăng dần theo `time`.
- */
-
 static char* trim(const char* input) {
     // Cắt khoảng trắng phía trước.
     while (isspace((unsigned char)*input)) {

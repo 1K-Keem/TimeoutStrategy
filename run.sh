@@ -41,6 +41,19 @@ build_executable() {
 	make -B
 }
 
+resolve_python() {
+	if [[ -x ".venv/bin/python" ]]; then
+		printf '%s\n' ".venv/bin/python"
+	elif command -v python3 >/dev/null 2>&1; then
+		printf '%s\n' "python3"
+	elif command -v python >/dev/null 2>&1; then
+		printf '%s\n' "python"
+	else
+		echo "Error: python3 not found. Install dependencies with: make deps" >&2
+		exit 1
+	fi
+}
+
 extract_metric() {
 	local output="$1"
 	local pattern="$2"
@@ -91,7 +104,9 @@ run_benchmark() {
 		done
 	done
 
-	python benchmark/plot_benchmark.py
+	local python_cmd
+	python_cmd=$(resolve_python)
+	"$python_cmd" benchmark/plot_benchmark.py
 
 	echo "Done. Results saved to $output_file"
 }

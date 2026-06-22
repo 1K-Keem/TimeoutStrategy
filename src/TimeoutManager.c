@@ -230,7 +230,7 @@ static TimeoutRecord doRollbackProcess(
 }
 
 /* ------------------------------------------------------------------ */
-/* API công khai                                                        */
+/* Public                                                             */
 /* ------------------------------------------------------------------ */
 
 void TimeoutManager_init(TimeoutManager *mgr, TimeoutConfig config)

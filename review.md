@@ -1,6 +1,6 @@
 # Báo cáo — Chiến lược Timeout vs Phát hiện Deadlock
 
-Môn: Hệ điều hành (Extra Assignment) · Ngôn ngữ: C11 · Branch: `fix_deadlock_C++_to_C`
+Môn: Hệ điều hành (Extra Assignment) · Ngôn ngữ: C17 · Branch: `fix_deadlock_C++_to_C`
 Ngày: 2026-06-12
 
 ---
@@ -32,7 +32,7 @@ Mỗi event = 1 time unit. Khi `waiting_time >= TIMEOUT` → kích hoạt xử l
 
 Event loop mỗi time unit: giải phóng resource hết hạn → cấp pending cũ → xử lý event mới → áp dụng timeout → cấp lại pending → quét process hoàn thành.
 
-> Code là C11 thuần nên không có class/method. Struct được khởi tạo bằng `memset` + gán field, "method" mô phỏng bằng hàm nhận con trỏ struct làm tham số đầu (vd `TimeoutManager_init(&mgr, cfg)`). Mảng động tự quản lý capacity bằng `realloc`, thay vì `std::vector`/`std::map`.
+> Code là C17 thuần nên không có class/method. Struct được khởi tạo bằng `memset` + gán field, "method" mô phỏng bằng hàm nhận con trỏ struct làm tham số đầu (vd `TimeoutManager_init(&mgr, cfg)`). Mảng động tự quản lý capacity bằng `realloc`, thay vì `std::vector`/`std::map`.
 
 ---
 

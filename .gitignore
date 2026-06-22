@@ -5,6 +5,7 @@ build/
 *.a
 *.pyc
 __pycache__/
+.venv/
 
 # Benchmark outputs
 benchmark/*.csv

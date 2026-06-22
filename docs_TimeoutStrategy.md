@@ -1,6 +1,6 @@
 # TimeoutStrategy — Tài liệu kỹ thuật
 
-Mô phỏng đề tài **"Chiến lược Timeout vs Phát hiện Deadlock"** bằng **C11**. Tài liệu này mô tả chính xác cách hệ thống hoạt động dựa trên mã nguồn hiện tại, dùng làm cơ sở viết báo cáo.
+Mô phỏng đề tài **"Chiến lược Timeout vs Phát hiện Deadlock"** bằng **C17**. Tài liệu này mô tả chính xác cách hệ thống hoạt động dựa trên mã nguồn hiện tại, dùng làm cơ sở viết báo cáo.
 
 ---
 
@@ -33,7 +33,7 @@ Cần thí nghiệm với **≥ 3 giá trị TIMEOUT** và so sánh qua các met
 
 Luồng: `CSVParser_parse` → danh sách `Event` đã sort → `SimulationEngine_run` → mỗi time unit gọi `TimeoutManager_checkTimeouts` (truyền cả `DeadlockDetector`) → trả về `SimulationMetrics`.
 
-> Lưu ý chung về kiểu C: code là C11 thuần nên không có constructor/method. Mọi struct đều được khởi tạo qua `memset` + gán field, và "method" được mô phỏng bằng cách truyền con trỏ struct làm tham số đầu (vd `TimeoutManager_init(&mgr, cfg)`). Việc cấp phát/giải phóng chuỗi (char *) là rõ ràng — caller có trách nhiệm `free()` khi không dùng nữa.
+> Lưu ý chung về kiểu C: code là C17 thuần nên không có constructor/method. Mọi struct đều được khởi tạo qua `memset` + gán field, và "method" được mô phỏng bằng cách truyền con trỏ struct làm tham số đầu (vd `TimeoutManager_init(&mgr, cfg)`). Việc cấp phát/giải phóng chuỗi (char *) là rõ ràng — caller có trách nhiệm `free()` khi không dùng nữa.
 
 ---
 
@@ -304,7 +304,7 @@ ctest --test-dir build --output-on-failure
 Hoặc trực tiếp:
 
 ```powershell
-gcc -std=c11 -Iinclude tests/test_timeout.c src/CSVParser.c src/DeadlockDetector.c src/SimulationEngine.c src/TimeoutManager.c -o run_tests.exe
+gcc -std=c17 -D_POSIX_C_SOURCE=200809L -Iinclude tests/test_timeout.c src/CSVParser.c src/DeadlockDetector.c src/SimulationEngine.c src/TimeoutManager.c -o run_tests.exe
 .\run_tests.exe
 ```
 

@@ -4,24 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Hàm tiện ích copy chuỗi (deep copy) — dùng thay cho strdup vì strdup
-// không nằm trong chuẩn C11. Trả về NULL nếu input NULL.
-static char *my_strdup(const char *s)
-{
-  if (!s)
-    return NULL;
-  char *d = malloc(strlen(s) + 1);
-  if (d)
-    strcpy(d, s);
-  return d;
-}
-
-// Nhóm helper nội bộ bên dưới (getProcess, getRemainingCount, getEventVector,
-// ensureRemainingCount, ensureEventVector, pushEvent, addHeldResource,
-// removeHeldResource) đảm nhiệm việc tra cứu, tạo mới và cập nhật state
-// cho các process, resource, pending request cùng vector event mà engine
-// đang quản lý trong suốt quá trình mô phỏng.
-
 // Tìm process theo id, trả về NULL nếu không có.
 static Process *getProcess(SimulationEngine *engine, const char *processId)
 {
@@ -65,7 +47,7 @@ static int *ensureRemainingCount(SimulationEngine *engine, const char *processId
     engine->remainingEventCount_ = realloc(engine->remainingEventCount_, engine->remainingEventCountCapacity_ * sizeof(IntEntry));
   }
 
-  engine->remainingEventCount_[engine->remainingEventCountCount_].key = my_strdup(processId);
+  engine->remainingEventCount_[engine->remainingEventCountCount_].key = strdup(processId);
   engine->remainingEventCount_[engine->remainingEventCountCount_].value = 0;
   return &engine->remainingEventCount_[engine->remainingEventCountCount_++].value;
 }
@@ -98,7 +80,7 @@ static EventVector *ensureEventVector(SimulationEngine *engine, const char *proc
     engine->processEvents_ = realloc(engine->processEvents_, engine->processEventsCapacity_ * sizeof(EventVectorEntry));
   }
 
-  engine->processEvents_[engine->processEventsCount_].key = my_strdup(processId);
+  engine->processEvents_[engine->processEventsCount_].key = strdup(processId);
   engine->processEvents_[engine->processEventsCount_].value.events = NULL;
   engine->processEvents_[engine->processEventsCount_].value.count = 0;
   engine->processEvents_[engine->processEventsCount_].value.capacity = 0;
@@ -115,9 +97,9 @@ static void pushEvent(EventVector *vec, const Event *event)
   }
 
   vec->events[vec->count].time = event->time;
-  vec->events[vec->count].processId = my_strdup(event->processId);
-  vec->events[vec->count].action = my_strdup(event->action);
-  vec->events[vec->count].resourceId = my_strdup(event->resourceId);
+  vec->events[vec->count].processId = strdup(event->processId);
+  vec->events[vec->count].action = strdup(event->action);
+  vec->events[vec->count].resourceId = strdup(event->resourceId);
   vec->events[vec->count].duration = event->duration;
   vec->count++;
 }
@@ -141,7 +123,7 @@ static void addHeldResource(Process *process, const char *resourceId)
     process->heldResources = realloc(process->heldResources, process->heldResourcesCapacity * sizeof(char *));
   }
 
-  process->heldResources[process->heldResourcesCount++] = my_strdup(resourceId);
+  process->heldResources[process->heldResourcesCount++] = strdup(resourceId);
 }
 
 // Loại bỏ một tài nguyên khỏi danh sách heldResources khi process nhả nó.
@@ -263,9 +245,9 @@ void SimulationEngine_ensureProcessExists(SimulationEngine *engine, const char *
   }
 
   ProcessEntry *entry = &engine->processes_[engine->processesCount_++];
-  entry->key = my_strdup(processId);
+  entry->key = strdup(processId);
   memset(&entry->value, 0, sizeof(Process));
-  entry->value.id = my_strdup(processId);
+  entry->value.id = strdup(processId);
   entry->value.state = PROCESS_STATE_NEW;
 
   engine->metrics_.totalProcesses++;
@@ -291,9 +273,9 @@ Resource *SimulationEngine_ensureResourceExists(SimulationEngine *engine, const 
   }
 
   ResourceEntry *entry = &engine->resources_[engine->resourcesCount_++];
-  entry->key = my_strdup(resourceId);
+  entry->key = strdup(resourceId);
   memset(&entry->value, 0, sizeof(Resource));
-  entry->value.id = my_strdup(resourceId);
+  entry->value.id = strdup(resourceId);
 
   return &entry->value;
 }
@@ -377,8 +359,8 @@ void SimulationEngine_processEventsAt(SimulationEngine *engine, int currentTime,
       if (Resource_isFree(resource))
       {
         PendingRequest request;
-        request.processId = my_strdup(event->processId);
-        request.resourceId = my_strdup(event->resourceId);
+        request.processId = strdup(event->processId);
+        request.resourceId = strdup(event->resourceId);
         request.requestTime = currentTime;
         request.duration = event->duration;
         request.retryCount = 0;
@@ -433,7 +415,7 @@ void SimulationEngine_releaseExpiredResources(SimulationEngine *engine, int curr
         capacity = capacity == 0 ? 10 : capacity * 2;
         toRelease = realloc(toRelease, capacity * sizeof(char *));
       }
-      toRelease[count++] = my_strdup(resource->id);
+      toRelease[count++] = strdup(resource->id);
     }
   }
 
@@ -643,8 +625,8 @@ void SimulationEngine_replayProcess(SimulationEngine *engine, const char *proces
         engine->pendingRequests_ = realloc(engine->pendingRequests_, engine->pendingRequestsCapacity_ * sizeof(PendingRequest));
       }
       PendingRequest *req = &engine->pendingRequests_[engine->pendingRequestsCount_++];
-      req->processId = my_strdup(event->processId);
-      req->resourceId = my_strdup(event->resourceId);
+      req->processId = strdup(event->processId);
+      req->resourceId = strdup(event->resourceId);
       req->requestTime = currentTime;
       req->duration = event->duration;
       req->retryCount = 0;
@@ -659,7 +641,7 @@ void SimulationEngine_allocateResource(SimulationEngine *engine, Process *proces
 
   if (resource->owner)
     free(resource->owner);
-  resource->owner = my_strdup(process->id);
+  resource->owner = strdup(process->id);
 
   // Thêm tài nguyên vào danh sách heldResources của process
   addHeldResource(process, request->resourceId);
@@ -748,7 +730,7 @@ void SimulationEngine_releaseResource(SimulationEngine *engine, const char *reso
   if (!resource->owner)
     return;
 
-  char *ownerId = my_strdup(resource->owner);
+  char *ownerId = strdup(resource->owner);
 
   free(resource->owner);
   resource->owner = NULL;
@@ -794,7 +776,7 @@ void SimulationEngine_blockProcess(SimulationEngine *engine, Process *process, c
 
   if (process->waitingFor)
     free(process->waitingFor);
-  process->waitingFor = my_strdup(event->resourceId);
+  process->waitingFor = strdup(event->resourceId);
 
   if (engine->pendingRequestsCount_ >= engine->pendingRequestsCapacity_)
   {
@@ -804,8 +786,8 @@ void SimulationEngine_blockProcess(SimulationEngine *engine, Process *process, c
 
   // Thêm vào pendingRequests_ của toàn bộ engine
   PendingRequest *req = &engine->pendingRequests_[engine->pendingRequestsCount_++];
-  req->processId = my_strdup(event->processId);
-  req->resourceId = my_strdup(event->resourceId);
+  req->processId = strdup(event->processId);
+  req->resourceId = strdup(event->resourceId);
   req->requestTime = currentTime;
   req->duration = event->duration;
   req->retryCount = 0;
