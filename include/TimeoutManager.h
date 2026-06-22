@@ -1,50 +1,44 @@
-#pragma once
-#include "../include/DeadlockDetector.hpp"
-#include "Models.hpp"
+#ifndef TIMEOUT_MANAGER_H
+#define TIMEOUT_MANAGER_H
 
-#include <map>
-#include <vector>
+#include "Models.h"
+#include "DeadlockDetector.h"
 
-struct TimeoutConfig {
-  int timeout{5};
-  TimeoutStrategy strategy{TimeoutStrategy::Kill};
-  int retryDelay{1};
-  int maxRetries{3};
-  int maxRollbacks{3};
-};
+#include <stddef.h>
 
-class TimeoutManager {
-public:
-  explicit TimeoutManager(TimeoutConfig config);
+typedef struct {
+    int timeout;
+    TimeoutStrategy strategy;
+    int retryDelay;
+    int maxRetries;
+    int maxRollbacks;
+} TimeoutConfig;
 
-  vector<TimeoutRecord>
-  checkTimeouts(int currentTime, map<string, Process> &processes,
-                map<string, Resource> &resources,
-                vector<PendingRequest> &pendingRequests,
-                DeadlockDetector &detector);
+typedef struct {
+    TimeoutConfig config_;
+} TimeoutManager;
 
-  const TimeoutConfig &config() const;
+void TimeoutManager_init(TimeoutManager *mgr, TimeoutConfig config);
 
-private:
-  TimeoutConfig config_;
+TimeoutConfig TimeoutManager_getConfig(const TimeoutManager *mgr);
 
-  TimeoutRecord killProcess(int currentTime, Process &process,
-                            const PendingRequest &request, int waitingTime,
-                            bool deadlocked,
-                            map<string, Resource> &resources,
-                            vector<PendingRequest> &pendingRequests);
+/*
+ * Duyet pendingRequests, kiem tra timeout, xu ly theo strategy.
+ * Tra ve mang TimeoutRecord cap phat dong, ghi so luong vao *outCount.
+ * pendingRequestsCount co the bi giam (phan tu bi xoa trong ham).
+ * Caller phai goi free() sau khi dung xong.
+ */
+TimeoutRecord *TimeoutManager_checkTimeouts(
+    TimeoutManager *mgr,
+    int currentTime,
+    ProcessEntry *processes,
+    size_t processesCount,
+    ResourceEntry *resources,
+    size_t resourcesCount,
+    PendingRequest *pendingRequests,
+    size_t *pendingRequestsCount,
+    DeadlockDetector *detector,
+    size_t *outCount);
 
-  TimeoutRecord retryRequest(int currentTime, Process &process,
-                             PendingRequest request, int waitingTime,
-                             bool deadlocked,
-                             map<string, Resource> &resources,
-                             vector<PendingRequest> &pendingRequests,
-                             size_t requestIndex);
-
-  TimeoutRecord rollbackProcess(int currentTime, Process &process,
-                                const PendingRequest &request, int waitingTime,
-                                bool deadlocked,
-                                map<string, Resource> &resources,
-                                vector<PendingRequest> &pendingRequests);
-};
+#endif /* TIMEOUT_MANAGER_H */
 

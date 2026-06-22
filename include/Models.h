@@ -35,17 +35,17 @@ typedef struct {
 
 typedef struct {
     char* id;
-    ProcessState state; 
-    
+    ProcessState state;
+
     char** heldResources;
     size_t heldResourcesCount;
     size_t heldResourcesCapacity;
-    
+
     int requestTime;
     bool has_requestTime;
-    
-    char* waitingFor; 
-    
+
+    char* waitingFor;
+
     int retryAfter;
     int rollbackCount;
     bool completionCounted;
@@ -57,9 +57,9 @@ static inline bool Process_isAlive(const Process* p) {
 
 typedef struct {
     char* id;
-    
-    char* owner; 
-    
+
+    char* owner;
+
     int releaseTime;
     bool has_releaseTime;
 } Resource;
@@ -73,7 +73,7 @@ typedef struct {
     char* processId;
     char* resourceId;
     int waitingTime;
-    TimeoutStrategy strategy; 
+    TimeoutStrategy strategy;
     bool deadlockedAtTimeout;
     bool killed;
     bool retried;
@@ -99,3 +99,19 @@ static inline double SimulationMetrics_throughput(const SimulationMetrics* m) {
 static inline double SimulationMetrics_falsePositiveRate(const SimulationMetrics* m) {
     return m->timeoutEvents == 0 ? 0.0 : (double)(m->falsePositives) / m->timeoutEvents;
 }
+
+/* Map entry types dung chung cho SimulationEngine va TimeoutManager */
+typedef struct {
+    char* key;
+    Process value;
+} ProcessEntry;
+
+typedef struct {
+    char* key;
+    Resource value;
+} ResourceEntry;
+
+typedef struct {
+    char* key;
+    int value;
+} IntEntry;

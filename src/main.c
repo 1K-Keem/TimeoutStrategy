@@ -1,184 +1,188 @@
-#include "../include/CSVParser.hpp"
-#include "../include/Models.hpp"
-#include "../include/SimulationEngine.hpp"
-#include "../include/TimeoutManager.hpp"
+#include "../include/CSVParser.h"
+#include "../include/Models.h"
+#include "../include/SimulationEngine.h"
+#include "../include/TimeoutManager.h"
 
-#include <iomanip>
-#include <iostream>
-#include <stdexcept>
-#include <string>
-#include <vector>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-using namespace std;
-
-namespace {
-
-void printUsage(const char *prog) {
-  cerr << "Usage: " << prog
-       << " <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] "
-          "[max_retries|max_rollbacks]\n"
-       << "  timeout      nguong TIMEOUT (so nguyen >= 1, mac dinh 5)\n"
-       << "  strategy     kill | retry | rollback (mac dinh kill)\n"
-       << "  retry_delay  so time unit cho truoc khi xin lai (mac dinh 1)\n"
-       << "  max_*        so lan retry/rollback toi da truoc khi kill (mac dinh 3)\n"
-       << "  -v|--verbose in log tung su kien theo time unit\n"
-       << "  -c|--compare chay ca 3 chien luoc (kill/retry/rollback) va in bang so sanh\n";
+static void printUsage(const char *prog)
+{
+    fprintf(stderr,
+        "Usage: %s <dataset.csv> [timeout] [kill|retry|rollback] [retry_delay] [max_retries|max_rollbacks]\n"
+        "  timeout      nguong TIMEOUT (so nguyen >= 1, mac dinh 5)\n"
+        "  strategy     kill | retry | rollback (mac dinh kill)\n"
+        "  retry_delay  so time unit cho truoc khi xin lai (mac dinh 1)\n"
+        "  max_*        so lan retry/rollback toi da truoc khi kill (mac dinh 3)\n"
+        "  -v|--verbose in log tung su kien theo time unit\n"
+        "  -c|--compare chay ca 3 chien luoc (kill/retry/rollback) va in bang so sanh\n",
+        prog);
 }
 
-int parsePositiveInt(const string &text, const string &fieldName) {
-  size_t pos = 0;
-  int value = stoi(text, &pos);
-  if (pos != text.size()) {
-    throw invalid_argument("Gia tri khong hop le cho " + fieldName + ": " + text);
-  }
-  return value;
+static int parsePositiveInt(const char *text, const char *fieldName)
+{
+    char *end;
+    long value = strtol(text, &end, 10);
+    if (*end != '\0' || end == text || value < 1) {
+        fprintf(stderr, "Gia tri khong hop le cho %s: %s\n", fieldName, text);
+        exit(1);
+    }
+    return (int)value;
 }
 
-const char *strategyName(TimeoutStrategy strategy) {
-  switch (strategy) {
-  case TimeoutStrategy::Kill:
-    return "kill";
-  case TimeoutStrategy::Retry:
-    return "retry";
-  case TimeoutStrategy::Rollback:
-    return "rollback";
-  }
-  return "unknown";
+static const char *strategyName(TimeoutStrategy strategy)
+{
+    switch (strategy) {
+    case TIMEOUT_STRATEGY_KILL:     return "kill";
+    case TIMEOUT_STRATEGY_RETRY:    return "retry";
+    case TIMEOUT_STRATEGY_ROLLBACK: return "rollback";
+    }
+    return "unknown";
 }
 
-void printMetrics(const TimeoutConfig &config, const string &datasetPath,
-                  const SimulationMetrics &metrics) {
-  cout << "=== Cau hinh ===\n";
-  cout << "dataset       : " << datasetPath << "\n";
-  cout << "timeout       : " << config.timeout << "\n";
-  cout << "strategy      : " << strategyName(config.strategy) << "\n";
-  cout << "retry_delay   : " << config.retryDelay << "\n";
-  cout << "max_retries   : " << config.maxRetries << "\n";
-  cout << "max_rollbacks : " << config.maxRollbacks << "\n\n";
+static void printMetrics(const TimeoutConfig *config, const char *datasetPath,
+                         const SimulationMetrics *metrics)
+{
+    printf("=== Cau hinh ===\n");
+    printf("dataset       : %s\n", datasetPath);
+    printf("timeout       : %d\n", config->timeout);
+    printf("strategy      : %s\n", strategyName(config->strategy));
+    printf("retry_delay   : %d\n", config->retryDelay);
+    printf("max_retries   : %d\n", config->maxRetries);
+    printf("max_rollbacks : %d\n\n", config->maxRollbacks);
 
-  cout << "=== Metrics ===\n";
-  cout << "total_processes     : " << metrics.totalProcesses << "\n";
-  cout << "completed_processes : " << metrics.completedProcesses << "\n";
-  cout << "killed_processes    : " << metrics.killedProcesses << "\n";
-  cout << "timeout_events      : " << metrics.timeoutEvents << "\n";
-  cout << "retry_events        : " << metrics.retryEvents << "\n";
-  cout << "rollback_events     : " << metrics.rollbackEvents << "\n";
-  cout << "deadlock_resolved   : " << metrics.deadlockResolved << "\n";
-  cout << "false_positives     : " << metrics.falsePositives << "\n";
-  cout << "throughput          : " << metrics.throughput() << "\n";
-  cout << "false_positive_rate : " << metrics.falsePositiveRate() << "\n";
+    printf("=== Metrics ===\n");
+    printf("total_processes     : %d\n", metrics->totalProcesses);
+    printf("completed_processes : %d\n", metrics->completedProcesses);
+    printf("killed_processes    : %d\n", metrics->killedProcesses);
+    printf("timeout_events      : %d\n", metrics->timeoutEvents);
+    printf("retry_events        : %d\n", metrics->retryEvents);
+    printf("rollback_events     : %d\n", metrics->rollbackEvents);
+    printf("deadlock_resolved   : %d\n", metrics->deadlockResolved);
+    printf("false_positives     : %d\n", metrics->falsePositives);
+    printf("throughput          : %.3f\n", SimulationMetrics_throughput(metrics));
+    printf("false_positive_rate : %.3f\n", SimulationMetrics_falsePositiveRate(metrics));
 }
 
-void printCompareTable(const TimeoutConfig &base, const string &datasetPath,
-                       const vector<Event> &events) {
-  const TimeoutStrategy strategies[] = {
-      TimeoutStrategy::Kill, TimeoutStrategy::Retry, TimeoutStrategy::Rollback};
+static void printCompareTable(const TimeoutConfig *base, const char *datasetPath,
+                              Event *events, size_t eventsCount)
+{
+    const TimeoutStrategy strategies[] = {
+        TIMEOUT_STRATEGY_KILL, TIMEOUT_STRATEGY_RETRY, TIMEOUT_STRATEGY_ROLLBACK
+    };
 
-  cout << "=== So sanh chien luoc ===\n";
-  cout << "dataset : " << datasetPath << "\n";
-  cout << "timeout : " << base.timeout << "\n\n";
+    printf("=== So sanh chien luoc ===\n");
+    printf("dataset : %s\n", datasetPath);
+    printf("timeout : %d\n\n", base->timeout);
 
-  cout << left << setw(10) << "strategy" << right << setw(10) << "completed"
-       << setw(8) << "killed" << setw(8) << "retries" << setw(10) << "rollbacks"
-       << setw(10) << "resolved" << setw(8) << "fp" << setw(12) << "throughput"
-       << setw(10) << "fp_rate" << "\n";
-  cout << string(86, '-') << "\n";
+    printf("%-10s %10s %8s %8s %10s %10s %8s %12s %10s\n",
+           "strategy", "completed", "killed", "retries",
+           "rollbacks", "resolved", "fp", "throughput", "fp_rate");
+    printf("--------------------------------------------------------------------------------------\n");
 
-  for (const auto strategy : strategies) {
-    TimeoutConfig config = base;
-    config.strategy = strategy;
-    SimulationEngine engine(config, false);
-    const SimulationMetrics m = engine.run(events);
+    int i;
+    for (i = 0; i < 3; i++) {
+        TimeoutConfig config = *base;
+        config.strategy = strategies[i];
+        SimulationEngine *engine = SimulationEngine_create(&config, false);
+        SimulationMetrics m = SimulationEngine_run(engine, events, eventsCount);
+        SimulationEngine_destroy(engine);
 
-    cout << left << setw(10) << strategyName(strategy) << right << setw(10)
-         << m.completedProcesses << setw(8) << m.killedProcesses << setw(8)
-         << m.retryEvents << setw(10) << m.rollbackEvents << setw(10)
-         << m.deadlockResolved << setw(8) << m.falsePositives << setw(12)
-         << fixed << setprecision(3) << m.throughput() << setw(10)
-         << m.falsePositiveRate() << "\n";
-  }
+        printf("%-10s %10d %8d %8d %10d %10d %8d %12.3f %10.3f\n",
+               strategyName(strategies[i]),
+               m.completedProcesses, m.killedProcesses,
+               m.retryEvents, m.rollbackEvents, m.deadlockResolved,
+               m.falsePositives,
+               SimulationMetrics_throughput(&m),
+               SimulationMetrics_falsePositiveRate(&m));
+    }
 }
 
-} // namespace
+int main(int argc, char **argv)
+{
+    int verbose = 0;
+    int compare = 0;
 
-int main(int argc, char **argv) {
-  // Tach flag (-v/--verbose, -c/--compare) khoi tham so vi tri.
-  bool verbose = false;
-  bool compare = false;
-  vector<string> pos;
-  for (int i = 1; i < argc; ++i) {
-    const string arg = argv[i];
-    if (arg == "-v" || arg == "--verbose") {
-      verbose = true;
-    } else if (arg == "-c" || arg == "--compare") {
-      compare = true;
-    } else {
-      pos.push_back(arg);
-    }
-  }
+    /* Mang luu tham so vi tri (khong phai flag) */
+    const char *pos[8];
+    int posCount = 0;
 
-  if (pos.empty()) {
-    printUsage(argv[0]);
-    return 1;
-  }
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0) {
+            verbose = 1;
+        } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compare") == 0) {
+            compare = 1;
+        } else if (posCount < 8) {
+            pos[posCount++] = argv[i];
+        }
+    }
 
-  const string datasetPath = pos[0];
-  TimeoutConfig config;
+    if (posCount == 0) {
+        printUsage(argv[0]);
+        return 1;
+    }
 
-  try {
-    if (pos.size() >= 2) {
-      config.timeout = parsePositiveInt(pos[1], "timeout");
-    }
-    if (pos.size() >= 3) {
-      const string strategyArg = pos[2];
-      if (strategyArg == "kill") {
-        config.strategy = TimeoutStrategy::Kill;
-      } else if (strategyArg == "retry") {
-        config.strategy = TimeoutStrategy::Retry;
-      } else if (strategyArg == "rollback") {
-        config.strategy = TimeoutStrategy::Rollback;
-      } else {
-        throw invalid_argument(
-            "Chien luoc phai la 'kill', 'retry' hoac 'rollback': " +
-            strategyArg);
-      }
-    }
-    if (pos.size() >= 4) {
-      config.retryDelay = parsePositiveInt(pos[3], "retry_delay");
-    }
-    if (pos.size() >= 5) {
-      // Trong che do compare ca maxRetries lan maxRollbacks deu duoc dung.
-      config.maxRetries = parsePositiveInt(pos[4], "max_retries|max_rollbacks");
-      config.maxRollbacks = config.maxRetries;
-    }
-  } catch (const exception &ex) {
-    cerr << "Loi tham so: " << ex.what() << "\n";
-    printUsage(argv[0]);
-    return 1;
-  }
+    const char *datasetPath = pos[0];
 
-  try {
-    const vector<Event> events = CSVParser::parse(datasetPath);
+    TimeoutConfig config;
+    config.timeout      = 5;
+    config.strategy     = TIMEOUT_STRATEGY_KILL;
+    config.retryDelay   = 1;
+    config.maxRetries   = 3;
+    config.maxRollbacks = 3;
+
+    if (posCount >= 2)
+        config.timeout = parsePositiveInt(pos[1], "timeout");
+
+    if (posCount >= 3) {
+        if (strcmp(pos[2], "kill") == 0) {
+            config.strategy = TIMEOUT_STRATEGY_KILL;
+        } else if (strcmp(pos[2], "retry") == 0) {
+            config.strategy = TIMEOUT_STRATEGY_RETRY;
+        } else if (strcmp(pos[2], "rollback") == 0) {
+            config.strategy = TIMEOUT_STRATEGY_ROLLBACK;
+        } else {
+            fprintf(stderr, "Chien luoc phai la 'kill', 'retry' hoac 'rollback': %s\n", pos[2]);
+            printUsage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (posCount >= 4)
+        config.retryDelay = parsePositiveInt(pos[3], "retry_delay");
+
+    if (posCount >= 5) {
+        config.maxRetries   = parsePositiveInt(pos[4], "max_retries|max_rollbacks");
+        config.maxRollbacks = config.maxRetries;
+    }
+
+    size_t eventsCount = 0;
+    Event *events = CSVParser_parse(datasetPath, &eventsCount);
+    if (!events) {
+        fprintf(stderr, "Loi: khong doc duoc file %s\n", datasetPath);
+        return 1;
+    }
 
     if (compare) {
-      printCompareTable(config, datasetPath, events);
-      return 0;
+        printCompareTable(&config, datasetPath, events, eventsCount);
+        free(events);
+        return 0;
     }
 
-    SimulationEngine engine(config, verbose);
-    if (verbose) {
-      cout << "=== Event log ===\n";
-    }
-    const SimulationMetrics metrics = engine.run(events);
-    if (verbose) {
-      cout << "\n";
-    }
+    SimulationEngine *engine = SimulationEngine_create(&config, verbose);
+    if (verbose)
+        printf("=== Event log ===\n");
 
-    printMetrics(config, datasetPath, metrics);
-  } catch (const exception &ex) {
-    cerr << "Loi: " << ex.what() << "\n";
-    return 1;
-  }
+    SimulationMetrics metrics = SimulationEngine_run(engine, events, eventsCount);
 
-  return 0;
+    if (verbose)
+        printf("\n");
+
+    printMetrics(&config, datasetPath, &metrics);
+
+    SimulationEngine_destroy(engine);
+    free(events);
+    return 0;
 }

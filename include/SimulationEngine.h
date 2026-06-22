@@ -1,25 +1,10 @@
 #pragma once
 
-#include "../include/Models.h"
-#include "../include/TimeoutManager.h"
+#include "Models.h"
+#include "TimeoutManager.h"
 
 #include <stdbool.h>
 #include <stddef.h>
-
-typedef struct {
-    char* key;
-    Process value;
-} ProcessEntry;
-
-typedef struct {
-    char* key;
-    Resource value;
-} ResourceEntry;
-
-typedef struct {
-    char* key;
-    int value;
-} IntEntry;
 
 typedef struct {
     Event* events;

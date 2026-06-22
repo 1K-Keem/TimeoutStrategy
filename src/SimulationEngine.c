@@ -166,6 +166,10 @@ SimulationEngine *SimulationEngine_create(const TimeoutConfig *config, bool verb
   SimulationEngine *engine = malloc(sizeof(SimulationEngine));
   memset(engine, 0, sizeof(SimulationEngine));
   engine->verbose_ = verbose;
+  if (config) {
+    TimeoutManager_init(&engine->timeoutManager_, *config);
+  }
+  DeadlockDetector_init(&engine->deadlockDetector_);
   return engine;
 }
 
@@ -496,7 +500,7 @@ void SimulationEngine_applyTimeouts(SimulationEngine *engine, int currentTime)
   size_t recordsCount = 0;
   TimeoutRecord *records = TimeoutManager_checkTimeouts(
       &engine->timeoutManager_, currentTime, engine->processes_, engine->processesCount_,
-      engine->resources_, engine->resourcesCount_, engine->pendingRequests_, engine->pendingRequestsCount_,
+      engine->resources_, engine->resourcesCount_, engine->pendingRequests_, &engine->pendingRequestsCount_,
       &engine->deadlockDetector_, &recordsCount);
 
   size_t i;
@@ -812,3 +816,4 @@ void SimulationEngine_destroy(SimulationEngine *engine)
 
     free(engine);
 }
+
