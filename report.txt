@@ -1,0 +1,221 @@
+\subsection{Cơ chế Timeout}
+Struct \textit{TimeoutManager} là thành phần trung tâm xử lý timeout trong mô phỏng của chúng ta. Nó duyệt các request đang chờ, chỉ xét những process đang ở trạng thái Blocked, rồi tính $waiting\_time=current\_time-request\_time$. Khi waiting time đạt hoặc vượt ngưỡng timeout setting ban đầu, TimeoutManager sẽ chọn một trong ba cơ chế: kill, retry hoặc rollback mà ta quyết định khi chạy mô phỏng.
+
+Khi một process vượt ngưỡng timeout, hệ thống không dựa vào chu trình toàn cục để kết luận deadlock, mà kiểm tra riêng process đó có thật sự nằm trong chu trình chờ hay không. Nhờ vậy, hệ thống phân biệt được deadlock thật với trường hợp chờ lâu nhưng không deadlock. Từ đó ta có thể xác định chính xác số lượng False Positive.
+
+
+\begin{center}
+  {\bfseries TimeoutManager Struct \& Function Diagram}\\[4pt]
+\end{center}
+\begin{adjustbox}{max width=1\textwidth}
+\begin{tikzpicture}[
+  font=\small,
+  >=Latex,
+  classbox/.style={
+    draw,
+    thick,
+    rounded corners=2pt,
+    align=left,
+    inner sep=5pt,
+    fill=white,
+    text width=4.7cm
+  },
+  central/.style={
+    classbox,
+    fill=orange!8,
+    text width=12.5cm
+  },
+  data/.style={
+    classbox,
+    fill=blue!5
+  },
+  dep/.style={->, thick, dashed},
+  assoc/.style={->, thick}
+]
+
+\node[central] (tm) {
+  \textbf{TimeoutManager} \textnormal{(struct)}\\[2pt]
+  \textit{Fields}\\
+  config\_ : TimeoutConfig\\[3pt]
+  \textit{Public API}\\
+  TimeoutManager\_init(mgr, config) : void\\
+  TimeoutManager\_getConfig(mgr) : TimeoutConfig\\
+  TimeoutManager\_checkTimeouts(mgr, currentTime, processes, processesCount,\\
+  \hspace{1em}resources, resourcesCount, pendingRequests, pendingRequestsCount,\\
+  \hspace{1em}detector, outCount) : TimeoutRecord*\\[3pt]
+  \textit{Internal helpers (static)}\\
+  TimeoutManager\_killProcess(mgr, currentTime, process, resourceId,\\
+  \hspace{1em}waitingTime, deadlocked, resources, resourcesCount,\\
+  \hspace{1em}pendingRequests, pendingCount) : TimeoutRecord\\
+  TimeoutManager\_retryRequest(mgr, currentTime, process, request,\\
+  \hspace{1em}waitingTime, deadlocked, resources, resourcesCount,\\
+  \hspace{1em}pendingRequests, pendingCount, requestIndex) : TimeoutRecord\\
+  TimeoutManager\_rollbackProcess(mgr, currentTime, process, resourceId,\\
+  \hspace{1em}waitingTime, deadlocked, resources, resourcesCount,\\
+  \hspace{1em}pendingRequests, pendingCount) : TimeoutRecord
+};
+
+\node[data, above left=1.2cm and 1.0cm of tm.north west] (cfg) {
+  \textbf{TimeoutConfig} \textnormal{(struct)}\\[2pt]
+  timeout : int\\
+  strategy : TimeoutStrategy\\
+  retryDelay : int\\
+  maxRetries : int\\
+  maxRollbacks : int
+};
+
+\node[data, above right=1.2cm and 1.0cm of tm.north east] (det) {
+  \textbf{DeadlockDetector} \textnormal{(struct)}\\[2pt]
+  DeadlockDetector\_detectDeadlock(det) : bool\\
+  DeadlockDetector\_isInDeadlock(det, pid) : bool
+};
+
+\node[data, left=2.5cm of tm.west] (proc) {
+  \textbf{Process} \textnormal{(struct)}\\[2pt]
+  state\\
+  heldResources\\
+  has\_requestTime\\
+  requestTime\\
+  waitingFor\\
+  retryAfter\\
+  rollbackCount\\
+  completionCounted
+};
+
+\node[data, right=2.8cm of tm.east] (res) {
+  \textbf{Resource} \textnormal{(struct)}\\[2pt]
+  owner\\
+  has\_releaseTime\\
+  releaseTime\\
+  Resource\_isFree(r) : bool
+};
+
+\node[data, below left=1.2cm and 1.0cm of tm.south west] (pend) {
+  \textbf{PendingRequest} \textnormal{(struct)}\\[2pt]
+  processId\\
+  resourceId\\
+  requestTime\\
+  duration\\
+  retryCount
+};
+
+\node[data, below right=1.2cm and 1.0cm of tm.south east] (rec) {
+  \textbf{TimeoutRecord} \textnormal{(struct)}\\[2pt]
+  time\\
+  processId\\
+  resourceId\\
+  waitingTime\\
+  strategy\\
+  deadlockedAtTimeout\\
+  killed\\
+  retried\\
+  rolledBack\\
+  falsePositive
+};
+
+\draw[assoc] (tm.north west) -- node[above left, font=\small]{stores config} (cfg.south east);
+\draw[dep] (tm.north east) -- node[above, font=\small]{deadlock check} (det.south west);
+\draw[dep] (tm.west) -- node[above, font=\small]{mutates state} (proc.east);
+\draw[dep] (tm.east) -- node[above, font=\small]{releases / owns} (res.west);
+\draw[dep] (tm.south west) -- node[below left, font=\small]{consumes queue} (pend.north);
+\draw[assoc] (tm.south east) -- node[below right, font=\small]{returns result} (rec.north);
+
+\end{tikzpicture}
+\end{adjustbox}
+\newpage
+Về cấu trúc, \textit{TimeoutManager} làm việc với năm nhóm đối tượng chính.
+\begin{itemize}
+    \item \textit{TimeoutConfig} chứa các tham số điều khiển như timeout, strategy, retryDelay, maxRetries và maxRollbacks.
+    \item \textit{PendingRequest} đại diện cho các yêu cầu đang chờ tài nguyên.
+    \item \textit{Process} và \textit{Resource} là hai thực thể bị \textit{TimeoutManager} chỉnh sửa trực tiếp khi cần kill, retry hoặc rollback.
+    \item Cuối cùng, \textit{TimeoutRecord} là kết quả đầu ra của từng lần xử lý timeout; nó cho phép \textit{SimulationEngine} ghi nhận sự kiện, cập nhật thống kê và log lại diễn biến của mô phỏng.
+\end{itemize}
+
+Luồng xử lý của \textit{TimeoutManager} khá rõ ràng. Hàm \textit{TimeoutManager\_checkTimeouts} duyệt qua danh sách \textit{pendingRequests}, chỉ xét những process đang ở trạng thái Blocked, rồi tính waitingTime. Nếu waitingTime chưa đạt ngưỡng timeout thì request được bỏ qua. Ngược lại, hàm gọi \textit{DeadlockDetector\_isInDeadlock} để kiểm tra riêng process đó, rồi điều hướng sang một trong ba hàm xử lý tương ứng với strategy đã cấu hình.
+
+Toàn bộ các hàm xử lý nội bộ được khai báo \texttt{static} — nghĩa là chỉ có thể gọi được từ bên trong \texttt{TimeoutManager.c}, tương đương với \textit{private} trong C++. Chúng nhận con trỏ trực tiếp đến các struct thay vì tham chiếu, và trả về \texttt{TimeoutRecord} by value. Mảng \texttt{TimeoutRecord*} trả về từ \texttt{TimeoutManager\_checkTimeouts} được cấp phát động — caller có trách nhiệm gọi \texttt{free()} sau khi dùng xong.
+
+\subsection{Kill}
+Đây là cơ chế đơn giản và triệt để nhất: process bị đưa về trạng thái Terminated, toàn bộ tài nguyên đang giữ được giải phóng, và tất cả pending request liên quan bị xóa khỏi hàng đợi.
+\begin{algorithm}[H]
+\caption{TimeoutManager\_killProcess}
+\begin{algorithmic}[1]
+\Require mgr, currentTime, process, resourceId, waitingTime, deadlocked, resources, pendingRequests
+\Ensure TimeoutRecord with \texttt{killed = true}
+\State process.state $\gets$ PROCESS\_STATE\_TERMINATED
+\State process.has\_requestTime $\gets$ false
+\State process.waitingFor $\gets$ NULL
+\ForAll{resourceId in process.heldResources}
+  \State resource $\gets$ resources[resourceId]
+  \State resource.owner $\gets$ NULL
+  \State resource.has\_releaseTime $\gets$ false
+\EndFor
+\State process.heldResources $\gets$ empty
+\State remove every item from pendingRequests where item.processId = process.id
+\State \Return TimeoutRecord(currentTime, process.id, resourceId, waitingTime,
+\Statex \hspace{2.5em} strategy, deadlocked, true, false, false, not deadlocked)
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Retry request}
+Phương án này nhẹ nhàng hơn Kill một tí, đó là Process bị xử lý sẽ bị gỡ request hiện tại khỏi hàng đợi, retryCount được tăng lên, process được đưa về Running và được hẹn xin lại sau một khoảng thời gian retryDelay, nếu số lượng vượt maxRetries thì Process này sẽ bị Kill để tránh livelock.
+\begin{algorithm}[H]
+\caption{TimeoutManager\_retryRequest}
+\begin{algorithmic}[1]
+\Require mgr, currentTime, process, request, waitingTime, deadlocked, resources, pendingRequests, requestIndex
+\Ensure TimeoutRecord with \texttt{retried = true} or escalated Kill
+\State remove pendingRequests[requestIndex]
+\State request.retryCount $\gets$ request.retryCount + 1
+\State process.has\_requestTime $\gets$ false
+\State process.waitingFor $\gets$ NULL
+\If{request.retryCount $>$ mgr.config\_.maxRetries}
+  \State \Return TimeoutManager\_killProcess(mgr, currentTime, process, resourceId, waitingTime, deadlocked, resources, pendingRequests)
+\EndIf
+\State process.state $\gets$ PROCESS\_STATE\_RUNNING
+\State process.retryAfter $\gets$ currentTime + mgr.config\_.retryDelay
+\State request.requestTime $\gets$ process.retryAfter
+\State append request to pendingRequests
+\State \Return TimeoutRecord(currentTime, process.id, request.resourceId, waitingTime,
+\Statex \hspace{2.5em} strategy, deadlocked, false, true, false, not deadlocked)
+\end{algorithmic}
+\end{algorithm}
+\subsection{Rollback}
+Đây là phương án cân bằng nhất, Process được đưa về trạng thái New, toàn bộ resource đang giữ được trả lại, các pending request liên quan bị xóa, rồi SimulationEngine sẽ replay lại toàn bộ event gốc của process từ đầu. Nếu rollback quá nhiều lần vượt ngưỡng maxRollbacks thì Process cũng sẽ bị Kill để tránh livelock (livelock chính là  trạng thái hệ thống vẫn đang hoạt động, tuy nhiên nó không có thực sự tiến triển. Tức là nó sẽ xảy ra khi Process cứ bị Rollback hoặc Retry liên tục, tài nguyên trả ra rồi xin lại, nhưng không bao giờ hoàn thành). Điểm khác nhau giữa Retry và Rollback là: Retry chỉ hoãn request hiện tại rồi cho process xin lại sau một khoảng thời gian retryDelay, process vẫn giữa tài nguyên đang có và không bị quay về đầu. Còn Rollback giải phóng toàn bộ tài nguyên đang giữ, xóa mọi pending của process, đưa process về trạng thái New, rồi để engine chạy lại từ đầu.
+\begin{algorithm}[H]
+\caption{TimeoutManager\_rollbackProcess}
+\begin{algorithmic}[1]
+\Require mgr, currentTime, process, resourceId, waitingTime, deadlocked, resources, pendingRequests
+\Ensure TimeoutRecord with \texttt{rolledBack = true} or escalated Kill
+\State process.rollbackCount $\gets$ process.rollbackCount + 1
+\If{process.rollbackCount $>$ mgr.config\_.maxRollbacks}
+  \State \Return TimeoutManager\_killProcess(mgr, currentTime, process, resourceId, waitingTime, deadlocked, resources, pendingRequests)
+\EndIf
+\ForAll{resourceId in process.heldResources}
+  \State resource $\gets$ resources[resourceId]
+  \State resource.owner $\gets$ NULL
+  \State resource.has\_releaseTime $\gets$ false
+\EndFor
+\State process.heldResources $\gets$ empty
+\State remove every item from pendingRequests where item.processId = process.id
+\State process.state $\gets$ PROCESS\_STATE\_NEW
+\State process.has\_requestTime $\gets$ false
+\State process.waitingFor $\gets$ NULL
+\State \Return TimeoutRecord(currentTime, process.id, resourceId, waitingTime,
+\Statex \hspace{2.5em} strategy, deadlocked, false, false, true, not deadlocked)
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{So sánh ba cơ chế}
+
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.9cm} *{3}{>{\raggedright\arraybackslash}X}}
+\toprule
+\textbf{Tiêu chí} & \textbf{Kill} & \textbf{Retry} & \textbf{Rollback} \\
+\midrule
+Bản chất & Kết thúc process ngay & Chờ request thử lại sau delay & Quay về đầu, chạy lại toàn bộ \\
+Resource & Giải phóng hết & Giữ nguyên resource đang có & Giải phóng hết \\
+Trạng thái process & \texttt{PROCESS\_STATE\_TERMINATED} & \texttt{PROCESS\_STATE\_RUNNING} tạm thời & \texttt{PROCESS\_STATE\_NEW} \\
+Phạm vi & Cả process & Chỉ 1 request đang chờ & Cả lifecycle của process \\
+Rủi ro & Mất throughput & Livelock, false positive & Livelock nếu lặp lại nhiều \\
+Chặn rủi ro & Không cần & \texttt{maxRetries} $\to$ kill & \texttt{maxRollbacks} $\to$ kill \\
+\bottomrule
+\end{tabularx}
